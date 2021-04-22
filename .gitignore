@@ -1,0 +1,10 @@
+node_modules
+
+#Hardhat files
+cache
+artifacts
+secrets.json
+flat-*
+yarn-error.log
+reports
+build
