@@ -15,7 +15,7 @@ contract ExtendableTokenLocker {
     using SafeERC20 for IERC20;
 
     // ERC20 basic token contract being held
-    IERC20 immutable private _token;
+    IERC20 private immutable _token;
 
     // beneficiary of tokens after they are released
     address private _beneficiary;
@@ -24,11 +24,18 @@ contract ExtendableTokenLocker {
     uint256 private _releaseTime;
 
     event BeneficiaryUpdated(address newBeneficiary);
-    event LockTimeExtended(uint secondsAdded, uint newLockTime);
+    event LockTimeExtended(uint256 secondsAdded, uint256 newLockTime);
 
-    constructor (IERC20 token_, address beneficiary_, uint256 releaseTime_) {
+    constructor(
+        IERC20 token_,
+        address beneficiary_,
+        uint256 releaseTime_
+    ) {
         // solhint-disable-next-line not-rely-on-time
-        require(releaseTime_ > block.timestamp, "TokenTimelock: release time is before current time");
+        require(
+            releaseTime_ > block.timestamp,
+            "TokenTimelock: release time is before current time"
+        );
         _token = token_;
         _beneficiary = beneficiary_;
         _releaseTime = releaseTime_;
@@ -65,7 +72,10 @@ contract ExtendableTokenLocker {
      */
     function release() public virtual {
         // solhint-disable-next-line not-rely-on-time
-        require(block.timestamp >= releaseTime(), "TokenTimelock: current time is before release time");
+        require(
+            block.timestamp >= releaseTime(),
+            "TokenTimelock: current time is before release time"
+        );
 
         uint256 amount = token().balanceOf(address(this));
         require(amount > 0, "TokenTimelock: no tokens to release");
@@ -74,7 +84,7 @@ contract ExtendableTokenLocker {
     }
 
     function sweep(address sweeptoken) public onlyBeneficiary {
-        require(sweeptoken != address(token()),"Cant sweep config token");
+        require(sweeptoken != address(token()), "Cant sweep config token");
         IERC20 _tokenInternal = IERC20(sweeptoken);
         uint256 amount = _tokenInternal.balanceOf(address(this));
         require(amount > 0, "TokenTimelock: no tokens to release");
@@ -82,14 +92,16 @@ contract ExtendableTokenLocker {
         _tokenInternal.safeTransfer(beneficiary(), amount);
     }
 
-    function transferBeneficiary(address newBeneficiary) external onlyBeneficiary {
+    function transferBeneficiary(address newBeneficiary)
+        external
+        onlyBeneficiary
+    {
         _beneficiary = newBeneficiary;
         emit BeneficiaryUpdated(newBeneficiary);
     }
 
-    function extendLocktime(uint _seconds) external onlyBeneficiary {
+    function extendLocktime(uint256 _seconds) external onlyBeneficiary {
         _releaseTime += _seconds;
         emit LockTimeExtended(_seconds, _releaseTime);
     }
-
 }

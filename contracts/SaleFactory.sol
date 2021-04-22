@@ -5,8 +5,9 @@ import "./BaseSale.sol";
 import "./interfaces/IBaseSale.sol";
 
 contract SaleFactory is Ownable {
-    uint fee;
+    uint256 fee;
     address public baseSale;
+
     address[] internal salesDeployed;
 
     event CreatedSale(address newSale);
@@ -15,13 +16,16 @@ contract SaleFactory is Ownable {
         baseSale = _newBaseSale;
     }
 
-    function setNewFee(uint _newFee) external onlyOwner {
+    function setNewFee(uint256 _newFee) external onlyOwner {
         fee = _newFee;
     }
 
-    function deploySale(CommonStructures.SaleConfig memory saleConfigNew) external returns (address payable newSale) {
+    function deploySale(CommonStructures.SaleConfig memory saleConfigNew)
+        external
+        returns (address payable newSale)
+    {
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
-        require(baseSale != address(0),"Base sale contract not set");
+        require(baseSale != address(0), "Base sale contract not set");
         // require(saleConfigNew.)
         bytes20 addressBytes = bytes20(baseSale);
 
@@ -49,57 +53,67 @@ contract SaleFactory is Ownable {
         return salesDeployed;
     }
 
-    function getETHFee() external view returns (uint) {
+    function getETHFee() external view returns (uint256) {
         return fee;
     }
 
-    function getActiveSalesCount() public view returns (uint count) {
+    function getActiveSalesCount() public view returns (uint256 count) {
         address[] memory allSales = salesDeployed;
 
-        for(uint i =0;i<allSales.length;i++) {
+        for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if(!refSale.isSaleOver() && refSale.saleStarted()){
+            if (!refSale.isSaleOver() && refSale.saleStarted()) {
                 count++;
             }
         }
     }
 
-    function getParticipatedSalesCount(address user) public view returns (uint count) {
+    function getParticipatedSalesCount(address user)
+        public
+        view
+        returns (uint256 count)
+    {
         address[] memory allSales = salesDeployed;
 
-        for(uint i =0;i<allSales.length;i++) {
+        for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if(refSale.userData(user).contributedAmount > 0){
+            if (refSale.userData(user).contributedAmount > 0) {
                 count++;
             }
         }
     }
 
-    function getSalesActive() external view returns (address [] memory activeSales) {
+    function getSalesActive()
+        external
+        view
+        returns (address[] memory activeSales)
+    {
         address[] memory allSales = salesDeployed;
-        uint count=0;
+        uint256 count = 0;
         activeSales = new address[](getActiveSalesCount());
-        for(uint i =0;i<allSales.length;i++) {
+        for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if(!refSale.isSaleOver() && refSale.saleStarted()){
+            if (!refSale.isSaleOver() && refSale.saleStarted()) {
                 activeSales[count] = allSales[i];
                 count++;
             }
         }
     }
 
-    function getSalesUserIsIn(address user) external view returns (address[] memory salesParticipated) {
+    function getSalesUserIsIn(address user)
+        external
+        view
+        returns (address[] memory salesParticipated)
+    {
         address[] memory allSales = salesDeployed;
-        uint count=0;
+        uint256 count = 0;
         salesParticipated = new address[](getParticipatedSalesCount(user));
-        for(uint i =0;i<allSales.length;i++) {
+        for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if(refSale.userData(user).contributedAmount > 0){
+            if (refSale.userData(user).contributedAmount > 0) {
                 salesParticipated[count] = allSales[i];
                 count++;
             }
         }
     }
-
-
 }

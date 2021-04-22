@@ -6,10 +6,20 @@
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.1.2",
-    "hardhat": "^2.2.0"
+    "hardhat": "^2.2.0",
+    "husky": "^4.3.0",
+    "prettier": "^2.2.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.1",
+    "pretty-quick": "^3.0.2"
   },
   "dependencies": {
     "@nomiclabs/hardhat-etherscan": "^2.1.1",
     "@openzeppelin/contracts": "^4.0.0"
+  },
+  "scripts": {
+    "prettier": "prettier --write 'contracts/**/*.sol'",
+    "lint": "pretty-quick --pattern '**/*.*(sol|json)' --verbose",
+    "lint:check": "prettier --check **/*.sol **/*.json",
+    "lint:fix": "pretty-quick --pattern '**/*.*(sol|json)' --staged --verbose"
   }
 }

@@ -15,23 +15,23 @@ library CommonStructures {
     */
     struct SaleConfig {
         address token;
-        uint minBuy;
-        uint maxBuy;
-        uint softCap;
-        uint hardCap;
-        uint salePrice;
-        uint listingPrice;
-        uint startTime;
-        uint lpUnlockTime;
+        uint256 minBuy;
+        uint256 maxBuy;
+        uint256 softCap;
+        uint256 hardCap;
+        uint256 salePrice;
+        uint256 listingPrice;
+        uint256 startTime;
+        uint256 lpUnlockTime;
         string detailsJSON;
         address router;
         address creator;
-        uint teamShare;
+        uint256 teamShare;
     }
 
     struct UserData {
-        uint contributedAmount;
-        uint tokensClaimable;
+        uint256 contributedAmount;
+        uint256 tokensClaimable;
         bool tokensClaimed;
         bool refundTaken;
     }
