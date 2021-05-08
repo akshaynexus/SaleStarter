@@ -117,25 +117,31 @@ contract BaseSale {
     function buyTokens() public payable {
         require(saleStarted() && !refundEnabled, "Not started yet");
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
-        require(msg.value > 0);
+        //First reduce with how much wed fill the raise
+        uint EthToContribute = userDataSender.contributedAmount + msg.value > saleConfig.maxBuy ? msg.value - saleConfig.maxBuy : msg.value;
+        //Next reduce it if we would fill hardcap
+        EthToContribute = totalRaised + EthToContribute > saleConfig.hardCap ? (totalRaised + EthToContribute) - saleConfig.hardCap :EthToContribute;
+        require(EthToContribute > 0);
         //Check if it surpases max buy
         require(
-            userDataSender.contributedAmount + msg.value <= saleConfig.maxBuy,
+            userDataSender.contributedAmount + EthToContribute <= saleConfig.maxBuy,
             "Exceeds max buy"
         );
         //If this is a new user add to array of contributors
         if (userDataSender.contributedAmount == 0)
             contributors.push(msg.sender);
         //Update contributed amount
-        userDataSender.contributedAmount += msg.value;
+        userDataSender.contributedAmount += EthToContribute;
         require(
-            totalRaised + msg.value <= saleConfig.hardCap,
+            totalRaised + EthToContribute <= saleConfig.hardCap,
             "HardCap will be reached"
         );
         //Update total raised
-        totalRaised += msg.value;
+        totalRaised += EthToContribute;
         //Update users tokens they can claim
-        userDataSender.tokensClaimable += calculateTokensClaimable(msg.value);
+        userDataSender.tokensClaimable += calculateTokensClaimable(EthToContribute);
+        //Refund excess
+        if(EthToContribute < msg.value) payable(msg.sender).sendValue(msg.value - EthToContribute);
     }
 
     function shouldRefundWithBal() public view returns (bool) {
