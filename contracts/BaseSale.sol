@@ -1,23 +1,25 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
-
+import "hardhat/console.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/ISaleFactory.sol";
+import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 import "./libraries/CommonStructures.sol";
 import "./ExtendableTokenLocker.sol";
 
 contract BaseSale {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for ERC20;
     using Address for address;
     using Address for address payable;
 
     bool initialized;
     bool saleForceStarted;
-    bool refundEnabled;
+    bool public refundEnabled;
     bool public finalized;
+
     uint256 public totalRaised;
-    uint256 DIVISOR = 10000;
+    uint256 DIVISOR;
 
     CommonStructures.SaleConfig public saleConfig;
     mapping(address => CommonStructures.UserData) public userData;
@@ -26,7 +28,7 @@ contract BaseSale {
     address[] internal contributors;
 
     IUniswapV2Router02 internal router;
-    IERC20 internal token;
+    ERC20 internal token;
 
     ExtendableTokenLocker public lpLocker;
 
@@ -46,8 +48,25 @@ contract BaseSale {
         _;
     }
 
+    function getETHAmountToListWith(uint baseValue , uint factoryFee) public view returns (uint256 ETHtoAdd) {
+        ETHtoAdd = baseValue - factoryFee;
+        if(saleConfig.teamShare != 0)
+            ETHtoAdd -= (ETHtoAdd * saleConfig.teamShare) / DIVISOR;
+    }
+
+    function getRequiredAllocationOfTokens() public view returns (uint256) {
+        uint256 saleTokens = calculateTokensClaimable(saleConfig.hardCap);
+        uint256 feeToFactory =
+            (saleConfig.hardCap * saleSpawner.getETHFee()) / DIVISOR;
+        uint256 ETHtoAdd = getETHAmountToListWith(saleConfig.hardCap, feeToFactory);
+        uint256 listingTokens = getTokensToAdd(ETHtoAdd);
+        return listingTokens + saleTokens;
+    }
+
     function saleStarted() public view returns (bool) {
-        return saleForceStarted || block.timestamp >= saleConfig.startTime;
+        return
+            (saleForceStarted || block.timestamp >= saleConfig.startTime) &&
+            token.balanceOf(address(this)) >= getRequiredAllocationOfTokens();
     }
 
     function isSaleOver() public view returns (bool) {
@@ -60,13 +79,14 @@ contract BaseSale {
         require(!initialized, "Already initialized");
         saleConfig = saleConfigNew;
         router = IUniswapV2Router02(saleConfigNew.router);
-        token = IERC20(saleConfig.token);
+        token = ERC20(saleConfig.token);
         if (saleConfigNew.lpUnlockTime > 0)
             lpLocker = new ExtendableTokenLocker(
                 token,
                 saleConfigNew.creator,
                 saleConfigNew.lpUnlockTime
             );
+        DIVISOR = 10000;
         saleSpawner = ISaleFactory(msg.sender);
         initialized = true;
     }
@@ -77,13 +97,17 @@ contract BaseSale {
         }
     }
 
+    function scaleToTokenAmount(uint input) public view returns (uint) {
+        uint toScaleDown = 18 - token.decimals();
+        return input / 10 ** toScaleDown;
+    }
+
     function calculateTokensClaimable(uint256 valueIn)
         public
         view
         returns (uint256)
     {
-        //Sale price = (Tokens per ETH * 1e18) / tokens decimals
-        return valueIn * saleConfig.salePrice;
+        return scaleToTokenAmount(valueIn) * saleConfig.salePrice;
     }
 
     function getRemainingContribution() external view returns (uint256) {
@@ -93,6 +117,7 @@ contract BaseSale {
     function buyTokens() public payable {
         require(saleStarted() && !refundEnabled, "Not started yet");
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
+        require(msg.value > 0);
         //Check if it surpases max buy
         require(
             userDataSender.contributedAmount + msg.value <= saleConfig.maxBuy,
@@ -146,11 +171,14 @@ contract BaseSale {
         saleForceStarted = true;
     }
 
-    function getTokensToAdd(uint256 value) public view returns (uint256) {
-        //Listing price = (Tokens per ETH * 1e18) / tokens decimals
-        return value * saleConfig.listingPrice;
+    function cancelSale() external onlySaleCreatororFactoryOwner {
+        refundEnabled = true;
+        //Send back tokens to creator of the sale
+        token.transfer(saleConfig.creator, token.balanceOf(address(this)));
     }
-
+    function getTokensToAdd(uint ethAmount) public view returns (uint) {
+        return scaleToTokenAmount(ethAmount) * saleConfig.listingPrice;
+    }
     function finalize() external onlySaleCreatororFactoryOwner {
         //Send team their eth
         if (saleConfig.teamShare > 0) {
@@ -162,7 +190,12 @@ contract BaseSale {
         token.safeApprove(address(router), type(uint256).max);
         uint256 feeToFactory =
             (totalRaised * saleSpawner.getETHFee()) / DIVISOR;
-        uint256 ETHtoAdd = totalRaised - feeToFactory;
+        //Send fee to factory
+        payable(address(saleSpawner)).sendValue(feeToFactory);
+        uint256 ETHtoAdd = getETHAmountToListWith(address(this).balance, feeToFactory);
+        // console.log("%s",ETHtoAdd);
+
+        require(ETHtoAdd <= address(this).balance,"not enough eth in contract");
         //Add liq as given
         uint256 tokensToAdd = getTokensToAdd(ETHtoAdd);
         router.addLiquidityETH{value: ETHtoAdd}(

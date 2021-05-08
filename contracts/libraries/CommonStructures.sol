@@ -15,7 +15,6 @@ library CommonStructures {
     */
     struct SaleConfig {
         address token;
-        uint256 minBuy;
         uint256 maxBuy;
         uint256 softCap;
         uint256 hardCap;
