@@ -2,7 +2,6 @@
 pragma solidity ^0.8.3;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BaseSale.sol";
-import "./interfaces/IBaseSale.sol";
 
 contract SaleFactory is Ownable {
     using Address for address payable;
@@ -86,120 +85,6 @@ contract SaleFactory is Ownable {
     //Get all eth fees from factory
     function retriveETH() external onlyOwner {
         feeReceiver.sendValue(address(this).balance);
-    }
-    //TODO move these extras to a new Statistics contract
-    function getActiveSalesCount() public view returns (uint256 count) {
-        address[] memory allSales = salesDeployed;
-
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (!refSale.isSaleOver() && refSale.saleStarted()) {
-                count++;
-            }
-        }
-    }
-
-    function getParticipatedSalesCount(address user)
-        public
-        view
-        returns (uint256 count)
-    {
-        address[] memory allSales = salesDeployed;
-
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (refSale.userData(user).contributedAmount > 0) {
-                count++;
-            }
-        }
-    }
-
-    function getRefundableSalesCount() public view returns (uint count) {
-        address[] memory allSales = salesDeployed;
-
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (refSale.shouldRefundWithBal()) {
-                count++;
-            }
-        }
-    }
-
-    function getRefundableSales() public view returns (address[] memory salesRefundable) {
-        salesRefundable = new address[](getRefundableSalesCount());
-        uint count = 0;
-        for (uint256 i = 0; i < salesRefundable.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(salesRefundable[i]));
-            if (refSale.shouldRefundWithBal()) {
-                salesRefundable[count] = address(refSale);
-                count++;
-            }
-        }
-    }
-
-    function getParticipatedSalesRefundable(address user)
-        public
-        view
-        returns (uint256 count)
-    {
-        address[] memory allSales = salesDeployed;
-
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (refSale.userEligibleToClaimRefund(user)) {
-                count++;
-            }
-        }
-    }
-    function getSalesActive()
-        external
-        view
-        returns (address[] memory activeSales)
-    {
-        address[] memory allSales = salesDeployed;
-        uint256 count = 0;
-        activeSales = new address[](getActiveSalesCount());
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (!refSale.isSaleOver() && refSale.saleStarted()) {
-                activeSales[count] = allSales[i];
-                count++;
-            }
-        }
-    }
-
-    function getSalesUserIsIn(address user)
-        external
-        view
-        returns (address[] memory salesParticipated)
-    {
-        address[] memory allSales = salesDeployed;
-        uint256 count = 0;
-        salesParticipated = new address[](getParticipatedSalesCount(user));
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (refSale.userData(user).contributedAmount > 0) {
-                salesParticipated[count] = allSales[i];
-                count++;
-            }
-        }
-    }
-
-    function getSalesRefundableForUser(address user)
-        external
-        view
-        returns (address[] memory salesRefundable)
-    {
-        address[] memory allSales = salesDeployed;
-        uint256 count = 0;
-        salesRefundable = new address[](getParticipatedSalesRefundable(user));
-        for (uint256 i = 0; i < allSales.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(allSales[i]));
-            if (refSale.userEligibleToClaimRefund(user)) {
-                salesRefundable[count] = allSales[i];
-                count++;
-            }
-        }
     }
 
 }

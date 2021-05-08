@@ -4,7 +4,7 @@ const hre = require("hardhat");
 
 ZERO_ADDRESS = "";
 describe("SaleFactory", function () {
-  let saleFactory, baseSale, tokenMockForSale, mockSale;
+  let saleFactory,saleData, baseSale, tokenMockForSale, mockSale;
 
   let owner, addr1, addr2, addrs;
   let buyerWallets = [];
@@ -13,11 +13,15 @@ describe("SaleFactory", function () {
 
   beforeEach(async function () {
     const SaleFactory = await ethers.getContractFactory("SaleFactory");
+    const SaleData = await ethers.getContractFactory("SaleData");
+
     buyerWallets = await ethers.getSigners();
     owner = buyerWallets[0];
     // runs before each test in this block
     saleFactory = await SaleFactory.deploy();
     await saleFactory.deployed();
+    saleData = await SaleData.deploy(saleFactory.address);
+    await saleData.deployed()
     //Expect fee to be 2%
     expect(await saleFactory.getETHFee()).to.equal(2 * 100);
     //Expect sale owner to be fee receiver
@@ -109,7 +113,7 @@ describe("SaleFactory", function () {
         to: mockSale.address,
         value: ethers.utils.parseEther("0.1"),
       });
-      let sales = await saleFactory.getSalesUserIsIn(buyerWallets[i].address)
+      let sales = await saleData.getSalesUserIsIn(buyerWallets[i].address)
       //Check that we get the address registered to factory
       expect(sales[0]).to.equal(mockSale.address)
       expect(sales.length).to.equal(1)
