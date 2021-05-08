@@ -144,6 +144,7 @@ contract BaseSale {
             "Refunds not enabled or doesnt pass config"
         );
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
+        require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
         userDataSender.refundTaken = true;

@@ -88,6 +88,14 @@ describe("SaleFactory", function () {
       expect(
         await tokenMockForSale.balanceOf(buyerWallets[i].address)
       ).to.equal(ethers.utils.parseEther("5"));
+      //User shouldnt be able to claim refund after they claim tokens
+      expect(mockSale.connect(buyerWallets[i]).getRefund()).to.be.revertedWith(
+        "Tokens already claimed"
+      );
+      //User shouldnt be able to claim tokens again after they claim tokens
+      expect(
+        mockSale.connect(buyerWallets[i]).claimTokens()
+      ).to.be.revertedWith("Tokens already claimed");
     }
     // //Check that current listing price is correct
     // expect()
@@ -107,7 +115,7 @@ describe("SaleFactory", function () {
       let startBal = await ethers.provider.getBalance(buyerWallets[i].address);
       startBal = parseFloat(startBal.toString());
       await mockSale.connect(buyerWallets[i]).getRefund();
-      let endBal = await ethers.provider.getBalance(buyerWallets[i].address);
+      // let endBal = await ethers.provider.getBalance(buyerWallets[i].address);
       // endBal = parseFloat(endBal.toString());
       // expect(endBal - startBal).to.equal(
       //   parseFloat(ethers.utils.parseEther("1").toString())
@@ -115,7 +123,9 @@ describe("SaleFactory", function () {
     }
     //User shouldnt be able to claim refund again
     for (let i = 1; i < 4; i++) {
-      expect(mockSale.connect(buyerWallets[i]).getRefund()).to.be.revertedWith("Refund already claimed");
+      expect(mockSale.connect(buyerWallets[i]).getRefund()).to.be.revertedWith(
+        "Refund already claimed"
+      );
     }
     //Now sudden apes came,we got past hardcap,the original user shouldnt be able to claim tokens after finalization since they already claimed refund
     for (let i = 4; i < 8; i++) {
@@ -127,7 +137,13 @@ describe("SaleFactory", function () {
     mockSale.finalize();
     //User shouldnt be able to claim tokens if they already claimed refund
     for (let i = 1; i < 4; i++) {
-      expect(mockSale.connect(buyerWallets[i]).claimTokens()).to.be.revertedWith("Refund was claimed");
+      expect(
+        mockSale.connect(buyerWallets[i]).claimTokens()
+      ).to.be.revertedWith("Refund was claimed");
+    }
+    //Users who got in sale should be able to claim tokens
+    for (let i = 4; i < 8; i++) {
+      mockSale.connect(buyerWallets[i]).claimTokens();
     }
   });
 });

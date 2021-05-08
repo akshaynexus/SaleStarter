@@ -8,3 +8,4 @@ flat-*
 yarn-error.log
 reports
 build
+frontend/src/hardhat/typechain/
