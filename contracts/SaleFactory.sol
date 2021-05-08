@@ -87,7 +87,7 @@ contract SaleFactory is Ownable {
     function retriveETH() external onlyOwner {
         feeReceiver.sendValue(address(this).balance);
     }
-
+    //TODO move these extras to a new Statistics contract
     function getActiveSalesCount() public view returns (uint256 count) {
         address[] memory allSales = salesDeployed;
 
@@ -114,6 +114,43 @@ contract SaleFactory is Ownable {
         }
     }
 
+    function getRefundableSalesCount() public view returns (uint count) {
+        address[] memory allSales = salesDeployed;
+
+        for (uint256 i = 0; i < allSales.length; i++) {
+            IBaseSale refSale = IBaseSale(payable(allSales[i]));
+            if (refSale.shouldRefundWithBal()) {
+                count++;
+            }
+        }
+    }
+
+    function getRefundableSales() public view returns (address[] memory salesRefundable) {
+        salesRefundable = new address[](getRefundableSalesCount());
+        uint count = 0;
+        for (uint256 i = 0; i < salesRefundable.length; i++) {
+            IBaseSale refSale = IBaseSale(payable(salesRefundable[i]));
+            if (refSale.shouldRefundWithBal()) {
+                salesRefundable[count] = address(refSale);
+                count++;
+            }
+        }
+    }
+
+    function getParticipatedSalesRefundable(address user)
+        public
+        view
+        returns (uint256 count)
+    {
+        address[] memory allSales = salesDeployed;
+
+        for (uint256 i = 0; i < allSales.length; i++) {
+            IBaseSale refSale = IBaseSale(payable(allSales[i]));
+            if (refSale.userEligibleToClaimRefund(user)) {
+                count++;
+            }
+        }
+    }
     function getSalesActive()
         external
         view
@@ -147,4 +184,22 @@ contract SaleFactory is Ownable {
             }
         }
     }
+
+    function getSalesRefundableForUser(address user)
+        external
+        view
+        returns (address[] memory salesRefundable)
+    {
+        address[] memory allSales = salesDeployed;
+        uint256 count = 0;
+        salesRefundable = new address[](getParticipatedSalesRefundable(user));
+        for (uint256 i = 0; i < allSales.length; i++) {
+            IBaseSale refSale = IBaseSale(payable(allSales[i]));
+            if (refSale.userEligibleToClaimRefund(user)) {
+                salesRefundable[count] = allSales[i];
+                count++;
+            }
+        }
+    }
+
 }

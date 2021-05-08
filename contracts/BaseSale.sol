@@ -138,9 +138,21 @@ contract BaseSale {
         userDataSender.tokensClaimable += calculateTokensClaimable(msg.value);
     }
 
+    function shouldRefundWithBal() public view returns (bool) {
+        return address(this).balance > 0 && shouldRefund();
+    }
+
+    function shouldRefund() public view returns (bool) {
+        return (refundEnabled || totalRaised < saleConfig.hardCap);
+    }
+
+    function userEligibleToClaimRefund(address user) public view returns (bool) {
+        CommonStructures.UserData storage userDataSender = userData[user];
+        return !userDataSender.tokensClaimed && !userDataSender.refundTaken && userDataSender.contributedAmount > 0;
+    }
+
     function getRefund() external {
-        require(
-            refundEnabled || totalRaised < saleConfig.hardCap,
+        require(shouldRefund(),
             "Refunds not enabled or doesnt pass config"
         );
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
@@ -177,9 +189,11 @@ contract BaseSale {
         //Send back tokens to creator of the sale
         token.transfer(saleConfig.creator, token.balanceOf(address(this)));
     }
+
     function getTokensToAdd(uint ethAmount) public view returns (uint) {
         return scaleToTokenAmount(ethAmount) * saleConfig.listingPrice;
     }
+
     function finalize() external onlySaleCreatororFactoryOwner {
         uint ETHBudget = totalRaised;
         //Send team their eth

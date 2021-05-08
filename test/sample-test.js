@@ -109,6 +109,10 @@ describe("SaleFactory", function () {
         to: mockSale.address,
         value: ethers.utils.parseEther("0.1"),
       });
+      let sales = await saleFactory.getSalesUserIsIn(buyerWallets[i].address)
+      //Check that we get the address registered to factory
+      expect(sales[0]).to.equal(mockSale.address)
+      expect(sales.length).to.equal(1)
     }
     //Call refund and get back eth since it didnt pass softcap
     for (let i = 1; i < 4; i++) {

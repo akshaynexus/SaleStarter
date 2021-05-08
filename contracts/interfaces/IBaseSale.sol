@@ -6,7 +6,8 @@ interface IBaseSale {
     function saleStarted() external view returns (bool);
 
     function isSaleOver() external view returns (bool);
-
+    function shouldRefundWithBal() external view returns (bool);
+    function userEligibleToClaimRefund(address) external view returns (bool);
     function userData(address)
         external
         view
