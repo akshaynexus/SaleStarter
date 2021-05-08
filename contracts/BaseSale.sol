@@ -181,10 +181,13 @@ contract BaseSale {
         return scaleToTokenAmount(ethAmount) * saleConfig.listingPrice;
     }
     function finalize() external onlySaleCreatororFactoryOwner {
+        uint ETHBudget = totalRaised;
         //Send team their eth
         if (saleConfig.teamShare > 0) {
+            uint teamShare= (totalRaised * saleConfig.teamShare) / 10000;
+            ETHBudget -= teamShare;
             payable(saleConfig.creator).sendValue(
-                (totalRaised * saleConfig.teamShare) / 10000
+                teamShare
             );
         }
         //Approve router to spend tokens
@@ -193,7 +196,9 @@ contract BaseSale {
             (totalRaised * saleSpawner.getETHFee()) / DIVISOR;
         //Send fee to factory
         payable(address(saleSpawner)).sendValue(feeToFactory);
-        uint256 ETHtoAdd = getETHAmountToListWith(address(this).balance, feeToFactory);
+        ETHBudget -= feeToFactory;
+
+        uint256 ETHtoAdd = getETHAmountToListWith(ETHBudget, feeToFactory);
         // console.log("%s",ETHtoAdd);
 
         require(ETHtoAdd <= address(this).balance,"not enough eth in contract");
@@ -209,6 +214,9 @@ contract BaseSale {
                 : saleConfig.creator,
             block.timestamp
         );
+        //If we have excess send it to factory
+        uint remainETH = address(this).balance;
+        if(remainETH > 0) payable(address(saleSpawner)).sendValue(remainETH);
         finalized = true;
     }
 }
