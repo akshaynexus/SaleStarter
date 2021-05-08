@@ -204,7 +204,7 @@ contract BaseSale {
         uint ETHBudget = totalRaised;
         //Send team their eth
         if (saleConfig.teamShare > 0) {
-            uint teamShare= (totalRaised * saleConfig.teamShare) / 10000;
+            uint teamShare= (totalRaised * saleConfig.teamShare) / DIVISOR;
             ETHBudget -= teamShare;
             payable(saleConfig.creator).sendValue(
                 teamShare
