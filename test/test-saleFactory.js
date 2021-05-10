@@ -2,14 +2,12 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const hre = require("hardhat");
 
-ZERO_ADDRESS = "";
+ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 describe("SaleFactory", function () {
   let saleFactory,saleData, baseSale, tokenMockForSale, mockSale;
 
-  let owner, addr1, addr2, addrs;
+  let owner;
   let buyerWallets = [];
-
-  let signers;
 
   beforeEach(async function () {
     const SaleFactory = await ethers.getContractFactory("SaleFactory");
@@ -19,9 +17,7 @@ describe("SaleFactory", function () {
     owner = buyerWallets[0];
     // runs before each test in this block
     saleFactory = await SaleFactory.deploy();
-    await saleFactory.deployed();
     saleData = await SaleData.deploy(saleFactory.address);
-    await saleData.deployed()
     //Expect fee to be 2%
     expect(await saleFactory.getETHFee()).to.equal(2 * 100);
     //Expect sale owner to be fee receiver
@@ -30,13 +26,11 @@ describe("SaleFactory", function () {
     const BaseSale = await ethers.getContractFactory("BaseSale");
     baseSale = await BaseSale.deploy();
 
-    await baseSale.deployed();
     await saleFactory.setBaseSale(baseSale.address);
     expect(await saleFactory.baseSale()).to.equal(baseSale.address);
 
     const BurnableToken = await ethers.getContractFactory("BurnableToken");
     tokenMockForSale = await BurnableToken.deploy("TestToken", "TSX");
-    await tokenMockForSale.deployed();
     //Approve sale factory to spend tokens to make sale
     await tokenMockForSale.approve(
       saleFactory.address,
@@ -46,6 +40,7 @@ describe("SaleFactory", function () {
     priceListing = 2;
     saleParams = [
       tokenMockForSale.address,
+      ZERO_ADDRESS,
       await hre.ethers.utils.parseEther("1"), //Max Buy
       await hre.ethers.utils.parseEther("3"), //SoftCap
       await hre.ethers.utils.parseEther("5"), //Hardcap
@@ -62,7 +57,6 @@ describe("SaleFactory", function () {
     mockSale = await saleFactory.deploySale(saleParams);
     mockSale = await ethers.getContractAt("BaseSale", mockSaleAddress);
     allSales = await saleFactory.getAllSales();
-    //  expect(await mockSale.saleConfig()).to.equal(saleParams);
     expect(allSales.length).to.equal(1);
   });
 

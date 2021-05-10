@@ -1,6 +1,5 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
-import "hardhat/console.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/ISaleFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
@@ -13,15 +12,13 @@ contract BaseSale {
     using Address for address;
     using Address for address payable;
 
-    bool initialized;
-    bool saleForceStarted;
-    bool public refundEnabled;
-    bool public finalized;
-
-    uint256 public totalRaised;
     uint256 DIVISOR;
 
+    //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
+    //Used to track the progress and status of the sale
+    CommonStructures.SaleInfo public saleInfo;
+
     mapping(address => CommonStructures.UserData) public userData;
 
     ISaleFactory internal saleSpawner;
@@ -65,18 +62,18 @@ contract BaseSale {
 
     function saleStarted() public view returns (bool) {
         return
-            (saleForceStarted || block.timestamp >= saleConfig.startTime) &&
+            (saleInfo.saleForceStarted || block.timestamp >= saleConfig.startTime) &&
             token.balanceOf(address(this)) >= getRequiredAllocationOfTokens();
     }
 
     function isSaleOver() public view returns (bool) {
-        return totalRaised >= saleConfig.hardCap || finalized;
+        return saleInfo.totalRaised >= saleConfig.hardCap || saleInfo.finalized;
     }
 
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew)
         public
     {
-        require(!initialized, "Already initialized");
+        require(!saleInfo.initialized, "Already initialized");
         saleConfig = saleConfigNew;
         router = IUniswapV2Router02(saleConfigNew.router);
         token = ERC20(saleConfig.token);
@@ -88,7 +85,7 @@ contract BaseSale {
             );
         DIVISOR = 10000;
         saleSpawner = ISaleFactory(msg.sender);
-        initialized = true;
+        saleInfo.initialized = true;
     }
 
     receive() external payable {
@@ -97,8 +94,15 @@ contract BaseSale {
         }
     }
 
+    function getFundingDecimals() public view returns (uint) {
+        if(saleConfig.fundingToken == address(0)) return 18;
+        return ERC20(saleConfig.fundingToken).decimals();
+    }
+
     function scaleToTokenAmount(uint input) public view returns (uint) {
-        uint toScaleDown = 18 - token.decimals();
+        uint fundingDecimals = getFundingDecimals();
+        if(fundingDecimals == 18) return input;
+        uint toScaleDown = getFundingDecimals() - token.decimals();
         return input / 10 ** toScaleDown;
     }
 
@@ -111,16 +115,21 @@ contract BaseSale {
     }
 
     function getRemainingContribution() external view returns (uint256) {
-        return saleConfig.hardCap - totalRaised;
+        return saleConfig.hardCap - saleInfo.totalRaised;
     }
 
     function buyTokens() public payable {
-        require(saleStarted() && !refundEnabled, "Not started yet");
-        CommonStructures.UserData storage userDataSender = userData[msg.sender];
+        require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
+        require(saleConfig.fundingToken == address(0),"This sale does not accept ETH");
+        _handlePurchase(msg.sender, msg.value);
+    }
+
+    function _handlePurchase(address user, uint value) internal {
+        CommonStructures.UserData storage userDataSender = userData[user];
         //First reduce with how much wed fill the raise
-        uint EthToContribute = userDataSender.contributedAmount + msg.value > saleConfig.maxBuy ? msg.value - saleConfig.maxBuy : msg.value;
+        uint EthToContribute = userDataSender.contributedAmount + value > saleConfig.maxBuy ? value - saleConfig.maxBuy : value;
         //Next reduce it if we would fill hardcap
-        EthToContribute = totalRaised + EthToContribute > saleConfig.hardCap ? (totalRaised + EthToContribute) - saleConfig.hardCap :EthToContribute;
+        EthToContribute = saleInfo.totalRaised + EthToContribute > saleConfig.hardCap ? (saleInfo.totalRaised + EthToContribute) - saleConfig.hardCap :EthToContribute;
         require(EthToContribute > 0);
         //Check if it surpases max buy
         require(
@@ -129,19 +138,19 @@ contract BaseSale {
         );
         //If this is a new user add to array of contributors
         if (userDataSender.contributedAmount == 0)
-            contributors.push(msg.sender);
+            contributors.push(user);
         //Update contributed amount
         userDataSender.contributedAmount += EthToContribute;
         require(
-            totalRaised + EthToContribute <= saleConfig.hardCap,
+            saleInfo.totalRaised + EthToContribute <= saleConfig.hardCap,
             "HardCap will be reached"
         );
         //Update total raised
-        totalRaised += EthToContribute;
+        saleInfo.totalRaised += EthToContribute;
         //Update users tokens they can claim
         userDataSender.tokensClaimable += calculateTokensClaimable(EthToContribute);
         //Refund excess
-        if(EthToContribute < msg.value) payable(msg.sender).sendValue(msg.value - EthToContribute);
+        if(EthToContribute < value) payable(user).sendValue(value - EthToContribute);
     }
 
     function shouldRefundWithBal() public view returns (bool) {
@@ -149,7 +158,7 @@ contract BaseSale {
     }
 
     function shouldRefund() public view returns (bool) {
-        return (refundEnabled || totalRaised < saleConfig.hardCap);
+        return (saleInfo.refundEnabled || saleInfo.totalRaised < saleConfig.hardCap);
     }
 
     function userEligibleToClaimRefund(address user) public view returns (bool) {
@@ -170,8 +179,8 @@ contract BaseSale {
     }
 
     function claimTokens() external {
-        require(!refundEnabled, "Refunds enabled");
-        require(finalized, "Sale not finalized yet");
+        require(!saleInfo.refundEnabled, "Refunds enabled");
+        require(saleInfo.finalized, "Sale not finalized yet");
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund was claimed");
@@ -183,15 +192,15 @@ contract BaseSale {
 
     // Admin only functions
     function enableRefunds() external onlySaleCreatororFactoryOwner {
-        refundEnabled = true;
+        saleInfo.refundEnabled = true;
     }
 
     function forceStartSale() external onlySaleCreatororFactoryOwner {
-        saleForceStarted = true;
+        saleInfo.saleForceStarted = true;
     }
 
     function cancelSale() external onlySaleCreatororFactoryOwner {
-        refundEnabled = true;
+        saleInfo.refundEnabled = true;
         //Send back tokens to creator of the sale
         token.transfer(saleConfig.creator, token.balanceOf(address(this)));
     }
@@ -201,10 +210,10 @@ contract BaseSale {
     }
 
     function finalize() external onlySaleCreatororFactoryOwner {
-        uint ETHBudget = totalRaised;
+        uint ETHBudget = saleInfo.totalRaised;
         //Send team their eth
         if (saleConfig.teamShare > 0) {
-            uint teamShare= (totalRaised * saleConfig.teamShare) / DIVISOR;
+            uint teamShare= (saleInfo.totalRaised * saleConfig.teamShare) / DIVISOR;
             ETHBudget -= teamShare;
             payable(saleConfig.creator).sendValue(
                 teamShare
@@ -213,13 +222,12 @@ contract BaseSale {
         //Approve router to spend tokens
         token.safeApprove(address(router), type(uint256).max);
         uint256 feeToFactory =
-            (totalRaised * saleSpawner.getETHFee()) / DIVISOR;
+            (saleInfo.totalRaised * saleSpawner.getETHFee()) / DIVISOR;
         //Send fee to factory
         payable(address(saleSpawner)).sendValue(feeToFactory);
         ETHBudget -= feeToFactory;
 
         uint256 ETHtoAdd = getETHAmountToListWith(ETHBudget, feeToFactory);
-        // console.log("%s",ETHtoAdd);
 
         require(ETHtoAdd <= address(this).balance,"not enough eth in contract");
         //Add liq as given
@@ -237,6 +245,6 @@ contract BaseSale {
         //If we have excess send it to factory
         uint remainETH = address(this).balance;
         if(remainETH > 0) payable(address(saleSpawner)).sendValue(remainETH);
-        finalized = true;
+        saleInfo.finalized = true;
     }
 }

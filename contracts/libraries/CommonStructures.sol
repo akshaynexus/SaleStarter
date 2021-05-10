@@ -3,18 +3,10 @@ pragma solidity ^0.8.3;
 pragma experimental ABIEncoderV2;
 
 library CommonStructures {
-    /* what to record
-    Token address,
-    Presale rate per ETH
-    Soft Cap and hardcap
-    Contribution Limits
-    Liquidity %
-    Listing price per eth
-    Additional info like telegram,website,github
-    LockTime for LP tokens,0 for none,which then goes straight to Owner wallet address
-    */
+
     struct SaleConfig {
         address token;
+        address fundingToken;
         uint256 maxBuy;
         uint256 softCap;
         uint256 hardCap;
@@ -26,6 +18,15 @@ library CommonStructures {
         address router;
         address creator;
         uint256 teamShare;
+    }
+
+    struct SaleInfo {
+        uint256 totalRaised;
+        bool saleForceStarted;
+        bool refundEnabled;
+        bool refundTaken;
+        bool initialized;
+        bool finalized;
     }
 
     struct UserData {
