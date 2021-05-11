@@ -232,6 +232,7 @@ contract BaseSale {
     }
 
     function finalize() external onlySaleCreatororFactoryOwner {
+        require(saleInfo.totalRaised > saleConfig.softCap,"Raise amount didnt pass softcap");
         require(!saleInfo.finalized,"Sale already finalized");
         //Set this early to prevent reentrancy
         saleInfo.finalized = true;

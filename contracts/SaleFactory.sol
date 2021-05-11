@@ -70,6 +70,7 @@ contract SaleFactory is Ownable {
         //Now that this is initialized,transfer tokens to sale contract to get sale prepared
         uint tokensNeeded = BaseSale(newSale).getRequiredAllocationOfTokens();
         targetToken.safeTransferFrom(msg.sender, newSale, tokensNeeded);
+        require(targetToken.balanceOf(newSale) >= tokensNeeded,"Not enough tokens gotten to new sale");
         salesDeployed.push(newSale);
         emit CreatedSale(newSale);
     }

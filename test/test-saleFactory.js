@@ -64,7 +64,7 @@ describe("SaleFactory", function () {
     //Send some eth from another account once presale starts
     //Start presale
     await mockSale.forceStartSale();
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       //Buy it up with different wallets
       await buyerWallets[i].sendTransaction({
         to: mockSale.address,
@@ -79,7 +79,7 @@ describe("SaleFactory", function () {
     //Finalize sale after hardcap is close
     mockSale.finalize();
     //Claim and make sure we get enough on claim
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       //Claim them all
       await mockSale.connect(buyerWallets[i]).claimTokens();
       //Check we got enough
@@ -101,7 +101,7 @@ describe("SaleFactory", function () {
 
   it("Should get refund if sale doesnt pass softcap", async function () {
     //Fill it lesser than softcap
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       //Buy it up with different wallets
       await buyerWallets[i].sendTransaction({
         to: mockSale.address,
@@ -113,7 +113,7 @@ describe("SaleFactory", function () {
       expect(sales.length).to.equal(1)
     }
     //Call refund and get back eth since it didnt pass softcap
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       let startBal = await ethers.provider.getBalance(buyerWallets[i].address);
       startBal = parseFloat(startBal.toString());
       await mockSale.connect(buyerWallets[i]).getRefund();
@@ -124,13 +124,13 @@ describe("SaleFactory", function () {
       // );
     }
     //User shouldnt be able to claim refund again
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       expect(mockSale.connect(buyerWallets[i]).getRefund()).to.be.revertedWith(
         "Refund already claimed"
       );
     }
     //Now sudden apes came,we got past hardcap,the original user shouldnt be able to claim tokens after finalization since they already claimed refund
-    for (let i = 4; i < 8; i++) {
+    for (let i = 5; i < 9; i++) {
       await buyerWallets[i].sendTransaction({
         to: mockSale.address,
         value: ethers.utils.parseEther("1"),
@@ -138,13 +138,13 @@ describe("SaleFactory", function () {
     }
     mockSale.finalize();
     //User shouldnt be able to claim tokens if they already claimed refund
-    for (let i = 1; i < 4; i++) {
+    for (let i = 1; i < 5; i++) {
       expect(
         mockSale.connect(buyerWallets[i]).claimTokens()
       ).to.be.revertedWith("Refund was claimed");
     }
     //Users who got in sale should be able to claim tokens
-    for (let i = 4; i < 8; i++) {
+    for (let i = 5; i < 9; i++) {
       mockSale.connect(buyerWallets[i]).claimTokens();
     }
   });
