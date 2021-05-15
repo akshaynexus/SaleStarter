@@ -1,11 +1,9 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-ethers");
-require("hardhat-deploy-ethers");
 require("hardhat-deploy");
-require("@symfoni/hardhat-react");
-require("hardhat-typechain");
-require("@typechain/ethers-v5");
+require("hardhat-gas-reporter");
+
 const { mnemonic, AlchemyProjID, EtherscanAPIKey } = require("./secrets.json");
 
 // This is a sample Hardhat task. To learn how to create your own go to
@@ -62,4 +60,7 @@ module.exports = {
   mocha: {
     timeout: 20000000,
   },
+  gasReporter: {
+    enabled: false
+  }
 };

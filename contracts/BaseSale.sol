@@ -3,11 +3,16 @@ pragma solidity ^0.8.3;
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/ISaleFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
 import "./libraries/CommonStructures.sol";
 import "./ExtendableTokenLocker.sol";
 
-contract BaseSale {
+interface IWETH is IERC20 {
+    function deposit() external payable;
+}
+
+contract BaseSale is ReentrancyGuard{
     using SafeERC20 for ERC20;
     using Address for address;
     using Address for address payable;
@@ -25,10 +30,20 @@ contract BaseSale {
     address[] internal contributors;
 
     IUniswapV2Router02 internal router;
+
     ERC20 internal token;
     ERC20 internal fundingToken;
+    IWETH internal weth;
 
     ExtendableTokenLocker public lpLocker;
+
+    event Contributed(address user,uint amount);
+    event TokensClaimed(address user,uint amount);
+    event ExcessRefunded(address user,uint amount);
+    event Refunded(address user,uint amount);
+    event TeamShareSent(address user,uint amount);
+    event FactoryFeeSent(uint amount);
+    event Finalized();
 
     modifier onlySaleCreator {
         require(msg.sender == saleConfig.creator, "Caller is not sale creator");
@@ -36,7 +51,6 @@ contract BaseSale {
     }
 
     modifier onlySaleCreatororFactoryOwner {
-        //TODO Replace address(0) with a way to get the factory owner
         require(
             msg.sender == saleConfig.creator ||
                 msg.sender == address(saleSpawner) ||
@@ -45,6 +59,7 @@ contract BaseSale {
         );
         _;
     }
+
     //Primary sale data getters
     function isETHSale() public view returns (bool) {
         return address(fundingToken) == address(0);
@@ -89,15 +104,15 @@ contract BaseSale {
         uint saleTokens = calculateTokensClaimable(saleConfig.hardCap);
         uint feeToFactory =
             (saleConfig.hardCap * saleSpawner.getETHFee()) / DIVISOR;
-        uint ETHBudget = getAmountToListWith(saleConfig.hardCap, feeToFactory);
-        uint listingTokens = getTokensToAdd(ETHBudget);
+        uint FundingBudget = getAmountToListWith(saleConfig.hardCap, feeToFactory);
+        uint listingTokens = getTokensToAdd(FundingBudget);
         return listingTokens + saleTokens;
     }
 
-    function getAmountToListWith(uint baseValue , uint factoryFee) public view returns (uint ETHBudget) {
-        ETHBudget = baseValue - factoryFee;
+    function getAmountToListWith(uint baseValue , uint factoryFee) public view returns (uint FundingBudget) {
+        FundingBudget = baseValue - factoryFee;
         if(saleConfig.teamShare != 0)
-            ETHBudget -= (ETHBudget * saleConfig.teamShare) / DIVISOR;
+            FundingBudget -= (FundingBudget * saleConfig.teamShare) / DIVISOR;
     }
 
     //User views to get status and remain alloc
@@ -132,7 +147,7 @@ contract BaseSale {
         token = ERC20(saleConfig.token);
         if (saleConfigNew.lpUnlockTime > 0)
             lpLocker = new ExtendableTokenLocker(
-                //TODO get pair token here
+                //TODO get pair token here as token to lock than the Sale token
                 token,
                 saleConfigNew.creator,
                 saleConfigNew.lpUnlockTime
@@ -141,6 +156,7 @@ contract BaseSale {
         saleSpawner = ISaleFactory(msg.sender);
         if (saleConfigNew.fundingToken != address(0))
             fundingToken = ERC20(saleConfigNew.fundingToken);
+        weth = IWETH(router.WETH());
         saleInfo.initialized = true;
     }
 
@@ -150,10 +166,18 @@ contract BaseSale {
         }
     }
 
-    function buyTokens() public payable {
+    function buyTokens() public payable nonReentrant {
         require(isETHSale(),"This sale does not accept ETH");
         require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
         _handlePurchase(msg.sender, msg.value);
+    }
+
+    function contributeTokens(uint _amount) public nonReentrant {
+        require(!isETHSale(),"This sale accepts ETH, use buyTokens instead");
+        require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
+        //Transfer funding token to this address
+        fundingToken.safeTransferFrom(msg.sender,address(this), _amount);
+        _handlePurchase(msg.sender, _amount);
     }
 
     function _handlePurchase(address user, uint value) internal {
@@ -182,17 +206,22 @@ contract BaseSale {
         //Update users tokens they can claim
         userDataSender.tokensClaimable += calculateTokensClaimable(FundsToContribute);
         //Refund excess
-        if(FundsToContribute < value) _handleExcessRefund(user, value - FundsToContribute);
+        if(FundsToContribute < value){
+            uint amountToRefund = value - FundsToContribute;
+            _handleFundingTransfer(user, amountToRefund);
+            emit ExcessRefunded(user, amountToRefund);
+        }
+        emit Contributed(user, value);
     }
 
-    function _handleExcessRefund(address user, uint value) internal {
+    function _handleFundingTransfer(address user, uint value) internal {
         if(isETHSale())
             payable(user).sendValue(value);
         else
             fundingToken.safeTransfer(user,value);
     }
 
-    function getRefund() external {
+    function getRefund() external nonReentrant {
         require(shouldRefund(),
             "Refunds not enabled or doesnt pass config"
         );
@@ -201,10 +230,15 @@ contract BaseSale {
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
         userDataSender.refundTaken = true;
-        payable(msg.sender).sendValue(userDataSender.contributedAmount);
+        _handleFundingTransfer(msg.sender, userDataSender.contributedAmount);
+        //If this refund was called when refund was not enabled and under hardcap reduce from total raised
+        if(saleInfo.totalRaised < saleConfig.hardCap && !saleInfo.refundEnabled) {
+            saleInfo.totalRaised -= userDataSender.contributedAmount;
+        }
+        emit Refunded(msg.sender, userDataSender.contributedAmount);
     }
 
-    function claimTokens() external {
+    function claimTokens() external nonReentrant {
         require(!saleInfo.refundEnabled, "Refunds enabled");
         require(saleInfo.finalized, "Sale not finalized yet");
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
@@ -214,6 +248,7 @@ contract BaseSale {
 
         userDataSender.tokensClaimed = true;
         token.safeTransfer(msg.sender, userDataSender.tokensClaimable);
+        emit TokensClaimed(msg.sender,userDataSender.tokensClaimable);
     }
 
     // Admin only functions
@@ -231,48 +266,62 @@ contract BaseSale {
         token.transfer(saleConfig.creator, token.balanceOf(address(this)));
     }
 
-    function finalize() external onlySaleCreatororFactoryOwner {
+    function addLiquidity(uint fundingAmount, uint tokenAmount, bool fETH) internal {
+        //If this is ETH,deposit in WETH from contract
+        if (fETH) {
+            weth.deposit{value:fundingAmount}();
+            weth.approve(address(router),fundingAmount);
+        }
+
+        //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
+        router.addLiquidity(
+            fETH ? address(weth) : address(fundingToken),
+            address(token),
+            fundingAmount,
+            tokenAmount,
+            fundingAmount,
+            tokenAmount,
+            address(lpLocker) != address(0)
+                ? address(lpLocker)
+                : saleConfig.creator,
+            block.timestamp
+        );
+    }
+
+    //NOTE: Do not add liq before sale finalizes or finalize will fail if price on pair is different from the configured listing price
+    function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
         require(saleInfo.totalRaised > saleConfig.softCap,"Raise amount didnt pass softcap");
         require(!saleInfo.finalized,"Sale already finalized");
-        //Set this early to prevent reentrancy
-        saleInfo.finalized = true;
-    
-        uint ETHBudget = saleInfo.totalRaised;
+        uint FundingBudget = saleInfo.totalRaised;
         //Send team their eth
         if (saleConfig.teamShare > 0) {
             uint teamShare= (saleInfo.totalRaised * saleConfig.teamShare) / DIVISOR;
-            ETHBudget -= teamShare;
-            payable(saleConfig.creator).sendValue(
+            FundingBudget -= teamShare;
+            _handleFundingTransfer(saleConfig.creator,
                 teamShare
             );
+            emit TeamShareSent(saleConfig.creator, teamShare);
         }
         //Approve router to spend tokens
         token.safeApprove(address(router), type(uint).max);
         uint feeToFactory =
             (saleInfo.totalRaised * saleSpawner.getETHFee()) / DIVISOR;
         //Send fee to factory
-        payable(address(saleSpawner)).sendValue(feeToFactory);
-        ETHBudget -= feeToFactory;
-
-        require(ETHBudget <= getFundingBalance(),"not enough eth in contract");
+        _handleFundingTransfer(address(saleSpawner),feeToFactory);
+        emit FactoryFeeSent(feeToFactory);
+        FundingBudget -= feeToFactory;
+        require(FundingBudget <= getFundingBalance(),"not enough in contract");
         //Add liq as given
-        uint tokensToAdd = getTokensToAdd(ETHBudget);
-        router.addLiquidityETH{value: ETHBudget}(
-            address(token),
-            tokensToAdd,
-            tokensToAdd,
-            ETHBudget,
-            address(lpLocker) != address(0)
-                ? address(lpLocker)
-                : saleConfig.creator,
-            block.timestamp
-        );
+        uint tokensToAdd = getTokensToAdd(FundingBudget);
+        addLiquidity(FundingBudget, tokensToAdd, isETHSale());
         //If we have excess send it to factory
         uint remain = getFundingBalance();
-        if(remain > 0) _handleExcessRefund(address(saleSpawner), remain);
+        if(remain > 0) _handleFundingTransfer(address(saleSpawner), remain);
         //If we have excess tokens after finalization send that to the creator
         uint requiredTokens = getRequiredAllocationOfTokens();
         uint remainToken = token.balanceOf(address(this));
         if (remainToken > requiredTokens) token.safeTransfer(saleConfig.creator,remainToken - requiredTokens);
+        saleInfo.finalized = true;
+        emit Finalized();
     }
 }

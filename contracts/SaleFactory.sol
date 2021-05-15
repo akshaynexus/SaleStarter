@@ -13,6 +13,7 @@ contract SaleFactory is Ownable {
     address[] internal salesDeployed;
 
     event CreatedSale(address newSale);
+    event sentToken (address token,uint amount);
 
     receive() external payable {}
 
@@ -86,6 +87,13 @@ contract SaleFactory is Ownable {
     //Get all eth fees from factory
     function retriveETH() external onlyOwner {
         feeReceiver.sendValue(address(this).balance);
+    }
+
+    function retriveToken(address token) external onlyOwner {
+        IERC20 iToken = IERC20(token);
+        uint amount = iToken.balanceOf(address(this));
+        iToken.safeTransfer(msg.sender, amount);
+        emit sentToken(token, amount);
     }
 
 }

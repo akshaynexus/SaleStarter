@@ -10,6 +10,7 @@ describe("SaleFactory", function () {
   let buyerWallets = [];
 
   beforeEach(async function () {
+    try{
     const SaleFactory = await ethers.getContractFactory("SaleFactory");
     const SaleData = await ethers.getContractFactory("SaleData");
 
@@ -58,9 +59,14 @@ describe("SaleFactory", function () {
     mockSale = await ethers.getContractAt("BaseSale", mockSaleAddress);
     allSales = await saleFactory.getAllSales();
     expect(allSales.length).to.equal(1);
+  } catch(err) {
+      assert.isNotOk(err,'Promise error');
+  }
   });
 
   it("Should get enough allocation per eth", async function () {
+    try{
+
     //Send some eth from another account once presale starts
     //Start presale
     await mockSale.forceStartSale();
@@ -97,9 +103,13 @@ describe("SaleFactory", function () {
     }
     // //Check that current listing price is correct
     // expect()
+  } catch(err) {
+    assert.isNotOk(err,'Promise error');
+}
   });
 
   it("Should get refund if sale doesnt pass softcap", async function () {
+    try{
     //Fill it lesser than softcap
     for (let i = 1; i < 5; i++) {
       //Buy it up with different wallets
@@ -147,5 +157,9 @@ describe("SaleFactory", function () {
     for (let i = 5; i < 9; i++) {
       mockSale.connect(buyerWallets[i]).claimTokens();
     }
+  } catch(err) {
+    assert.isNotOk(err,'Promise error');
+}
   });
+
 });

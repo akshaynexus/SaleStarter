@@ -9,6 +9,7 @@ contract SaleData {
     }
 
     //TODO add ownable and allow to change the factory contract address for data
+    //TODO use enumerableSet for data retrival and storage instead
 
     function getActiveSalesCount() public view returns (uint256 count) {
         address[] memory allSales = iSaleFactory.getAllSales();

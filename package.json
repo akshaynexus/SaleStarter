@@ -3,15 +3,11 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@symfoni/hardhat-react": "^0.3.0",
-    "@typechain/ethers-v5": "^6.0.5",
     "chai": "^4.3.4",
     "ethereum-waffle": "^3.3.0",
     "ethers": "^5.1.2",
     "hardhat": "^2.2.1",
     "hardhat-deploy": "^0.7.5",
-    "hardhat-deploy-ethers": "^0.3.0-beta.7",
-    "hardhat-typechain": "^0.3.5",
     "husky": "^4.3.0",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.1",
@@ -24,7 +20,8 @@
   },
   "dependencies": {
     "@nomiclabs/hardhat-etherscan": "^2.1.1",
-    "@openzeppelin/contracts": "^4.0.0"
+    "@openzeppelin/contracts": "^4.0.0",
+    "hardhat-gas-reporter": "^1.0.4"
   },
   "scripts": {
     "prettier": "prettier --write 'contracts/**/*.sol'",
