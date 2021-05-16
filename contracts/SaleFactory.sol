@@ -48,6 +48,7 @@ contract SaleFactory is Ownable {
             "Sale target router is empty"
         );
         require(saleConfigNew.creator == msg.sender,"Creator doesnt match the caller");
+        require(saleConfigNew.token != address(0),"Token not set");
         IERC20 targetToken = IERC20(saleConfigNew.token);
         // require(saleConfigNew.)
         bytes20 addressBytes = bytes20(baseSale);

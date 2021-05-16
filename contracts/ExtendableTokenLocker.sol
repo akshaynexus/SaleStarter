@@ -34,7 +34,7 @@ contract ExtendableTokenLocker {
         // solhint-disable-next-line not-rely-on-time
         require(
             releaseTime_ > block.timestamp,
-            "TokenTimelock: release time is before current time"
+            "ExtendableTokenLocker: release time is before current time"
         );
         _token = token_;
         _beneficiary = beneficiary_;
@@ -74,11 +74,11 @@ contract ExtendableTokenLocker {
         // solhint-disable-next-line not-rely-on-time
         require(
             block.timestamp >= releaseTime(),
-            "TokenTimelock: current time is before release time"
+            "ExtendableTokenLocker: current time is before release time"
         );
 
         uint256 amount = token().balanceOf(address(this));
-        require(amount > 0, "TokenTimelock: no tokens to release");
+        require(amount > 0, "ExtendableTokenLocker: no tokens to release");
 
         token().safeTransfer(beneficiary(), amount);
     }
@@ -87,7 +87,7 @@ contract ExtendableTokenLocker {
         require(sweeptoken != address(token()), "Cant sweep config token");
         IERC20 _tokenInternal = IERC20(sweeptoken);
         uint256 amount = _tokenInternal.balanceOf(address(this));
-        require(amount > 0, "TokenTimelock: no tokens to release");
+        require(amount > 0, "ExtendableTokenLocker: no tokens to sweep");
 
         _tokenInternal.safeTransfer(beneficiary(), amount);
     }

@@ -24,7 +24,7 @@ contract BaseSale is ReentrancyGuard {
     CommonStructures.SaleConfig public saleConfig;
     //Used to track the progress and status of the sale
     CommonStructures.SaleInfo public saleInfo;
-
+    //Stores the user data,used to track contribution and refund data
     mapping(address => CommonStructures.UserData) public userData;
 
     ISaleFactory internal saleSpawner;
@@ -102,6 +102,7 @@ contract BaseSale is ReentrancyGuard {
         return scaleToTokenAmount(ethAmount) * saleConfig.listingPrice;
     }
 
+    //This returns amount of tokens we need to allocate based on sale config
     function getRequiredAllocationOfTokens() public view returns (uint256) {
         uint256 saleTokens = calculateTokensClaimable(saleConfig.hardCap);
         uint256 feeToFactory =
@@ -112,6 +113,7 @@ contract BaseSale is ReentrancyGuard {
         return listingTokens + saleTokens;
     }
 
+    //This is used for token allocation calc from the saleconfig
     function getAmountToListWith(uint256 baseValue, uint256 factoryFee)
         public
         view
@@ -127,11 +129,13 @@ contract BaseSale is ReentrancyGuard {
         return saleConfig.hardCap - saleInfo.totalRaised;
     }
 
+    //Gets how much of the funding source balance is in contract
     function getFundingBalance() public view returns (uint256) {
         if (isETHSale()) return address(this).balance;
         return fundingToken.balanceOf(address(this));
     }
 
+    //Used to see if a sale has remaining balance that a user could claim refunds from
     function shouldRefundWithBal() public view returns (bool) {
         return getFundingBalance() > 0 && shouldRefund();
     }
@@ -153,6 +157,7 @@ contract BaseSale is ReentrancyGuard {
             userDataSender.contributedAmount > 0;
     }
 
+    //This creates and returns the pair for the sale if it doesnt exist
     function createPair(address baseToken, address saleToken)
         internal
         returns (IERC20)
@@ -163,6 +168,7 @@ contract BaseSale is ReentrancyGuard {
         return IERC20(factory.createPair(baseToken, saleToken));
     }
 
+    //This is the initializer so that minimal proxy clones can be initialized once
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew)
         public
     {
@@ -196,12 +202,14 @@ contract BaseSale is ReentrancyGuard {
         }
     }
 
+    //Upon receiving ETH This is called
     function buyTokens() public payable nonReentrant {
         require(isETHSale(), "This sale does not accept ETH");
         require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
         _handlePurchase(msg.sender, msg.value);
     }
 
+    //This function is used to contribute to sales that arent taking eth as contrib
     function contributeTokens(uint256 _amount) public nonReentrant {
         require(!isETHSale(), "This sale accepts ETH, use buyTokens instead");
         require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
@@ -302,6 +310,7 @@ contract BaseSale is ReentrancyGuard {
         token.transfer(saleConfig.creator, token.balanceOf(address(this)));
     }
 
+    //This function takes care of adding liq to the specified base pair
     function addLiquidity(
         uint256 fundingAmount,
         uint256 tokenAmount,
@@ -329,6 +338,7 @@ contract BaseSale is ReentrancyGuard {
     }
 
     //NOTE: Do not add liq before sale finalizes or finalize will fail if price on pair is different from the configured listing price
+    //This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
     function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
         require(
             saleInfo.totalRaised > saleConfig.softCap,
