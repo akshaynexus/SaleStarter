@@ -21,6 +21,7 @@ contract SaleFactory is Ownable {
         //2% of raised ETH
         fee = 200;
         feeReceiver = payable(msg.sender);
+        baseSale = address(new BaseSale());
     }
 
     function setBaseSale(address _newBaseSale) external onlyOwner {

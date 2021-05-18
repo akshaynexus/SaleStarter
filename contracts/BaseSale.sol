@@ -183,7 +183,6 @@ contract BaseSale is ReentrancyGuard {
         weth = IWETH(router.WETH());
         if (saleConfigNew.lpUnlockTime > 0)
             lpLocker = new ExtendableTokenLocker(
-                //TODO get pair token here as token to lock than the Sale token
                 createPair(
                     address(fundingToken) == address(0)
                         ? address(weth)

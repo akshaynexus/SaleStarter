@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-ethers");
+require("hardhat-deploy-ethers");
 require("hardhat-deploy");
 require("hardhat-gas-reporter");
 
@@ -31,18 +32,25 @@ module.exports = {
         network_id: 1,
       },
     },
-    testnet: {
+    "bsc-testnet": {
       url: `https://data-seed-prebsc-1-s1.binance.org:8545/`,
       accounts: {
         mnemonic: mnemonic,
       },
     },
-    live: {
+    bsc: {
       url: `https://bsc-dataseed3.ninicoin.io/`,
       accounts: {
         mnemonic: mnemonic,
       },
       gasPrice: 10 * 1e9,
+    },
+    fantom: {
+      url: `https://rpcapi.fantom.network/`,
+      accounts: {
+        mnemonic: mnemonic,
+      },
+      gasPrice: 90 * 1e9,
     },
   },
   solidity: {
@@ -53,6 +61,9 @@ module.exports = {
         runs: 200,
       },
     },
+  },
+  namedAccounts: {
+    deployer: 0,
   },
   etherscan: {
     apiKey: EtherscanAPIKey,
