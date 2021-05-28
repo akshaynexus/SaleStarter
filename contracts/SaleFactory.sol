@@ -7,14 +7,30 @@ contract SaleFactory is Ownable {
     using Address for address payable;
     using SafeERC20 for IERC20;
 
+    //Percent of ETH as service fee,scaled by 100,2% = 200
     uint256 fee;
+    //Max gas price in gwei
+    uint256 public gasPriceLimit;
+
+    //Toggle to limit max gas per contribution tx
+    bool public limitGas;
+
+    //Base sale which we minimal proxy clone for a new sale
     address public baseSale;
     address payable public feeReceiver;
+    //Internal array to track all sales deployed
     address[] internal salesDeployed;
 
+    //Events for all admin or nonadmin calls
     event CreatedSale(address newSale);
-    event sentToken (address token,uint amount);
+    event ETHRetrived(address receiver);
+    event BaseSaleUpdated(address newBase);
+    event ServiceFeeUpdated(uint256 newFee);
+    event GasPriceLimitUpdated(uint256 newPrice);
+    event LimitToggled(bool cur);
+    event SentToken(address token, uint256 amount);
 
+    //Used to receive the service fees
     receive() external payable {}
 
     constructor() {
@@ -22,34 +38,44 @@ contract SaleFactory is Ownable {
         fee = 200;
         feeReceiver = payable(msg.sender);
         baseSale = address(new BaseSale());
+        gasPriceLimit = 10 gwei;
+        limitGas = false;
     }
 
     function setBaseSale(address _newBaseSale) external onlyOwner {
         baseSale = _newBaseSale;
+        emit BaseSaleUpdated(_newBaseSale);
     }
 
     function setNewFee(uint256 _newFee) external onlyOwner {
         fee = _newFee;
+        emit ServiceFeeUpdated(_newFee);
     }
 
-    function deploySale(CommonStructures.SaleConfig memory saleConfigNew)
-        external
-        returns (address payable newSale)
-    {
+    function setGasPriceLimit(uint256 _newPrice) external onlyOwner {
+        gasPriceLimit = _newPrice;
+        emit GasPriceLimitUpdated(_newPrice);
+    }
+
+    function toggleLimit() external onlyOwner {
+        limitGas = !limitGas;
+        emit LimitToggled(limitGas);
+    }
+
+    //Used by base sale to check gas prices
+    function checkTxPrice(uint256 txGasPrice) external view returns (bool) {
+        return limitGas ? txGasPrice <= gasPriceLimit : true;
+    }
+
+    function deploySale(CommonStructures.SaleConfig memory saleConfigNew) external returns (address payable newSale) {
         require(baseSale != address(0), "Base sale contract not set");
         require(saleConfigNew.creator != address(0), "Sale creator is empty");
-        require(
-            saleConfigNew.hardCap > saleConfigNew.softCap,
-            "Sale hardcap is lesser than softcap"
-        );
+        require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
         //TODO investigate why this fails on tests
         // require(saleConfigNew.startTime >= block.timestamp,"Sale start time is before current time");
-        require(
-            saleConfigNew.router != address(0),
-            "Sale target router is empty"
-        );
-        require(saleConfigNew.creator == msg.sender,"Creator doesnt match the caller");
-        require(saleConfigNew.token != address(0),"Token not set");
+        require(saleConfigNew.router != address(0), "Sale target router is empty");
+        require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+        require(saleConfigNew.token != address(0), "Token not set");
         IERC20 targetToken = IERC20(saleConfigNew.token);
         // require(saleConfigNew.)
         bytes20 addressBytes = bytes20(baseSale);
@@ -57,23 +83,19 @@ contract SaleFactory is Ownable {
         assembly {
             // EIP-1167 bytecode
             let clone_code := mload(0x40)
-            mstore(
-                clone_code,
-                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
-            )
+            mstore(clone_code, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
             mstore(add(clone_code, 0x14), addressBytes)
-            mstore(
-                add(clone_code, 0x28),
-                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
-            )
+            mstore(add(clone_code, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
             newSale := create(0, clone_code, 0x37)
         }
 
         BaseSale(newSale).initialize(saleConfigNew);
+
         //Now that this is initialized,transfer tokens to sale contract to get sale prepared
-        uint tokensNeeded = BaseSale(newSale).getRequiredAllocationOfTokens();
+        uint256 tokensNeeded = BaseSale(newSale).getRequiredAllocationOfTokens();
         targetToken.safeTransferFrom(msg.sender, newSale, tokensNeeded);
-        require(targetToken.balanceOf(newSale) >= tokensNeeded,"Not enough tokens gotten to new sale");
+        require(targetToken.balanceOf(newSale) >= tokensNeeded, "Not enough tokens gotten to new sale");
+
         salesDeployed.push(newSale);
         emit CreatedSale(newSale);
     }
@@ -89,13 +111,14 @@ contract SaleFactory is Ownable {
     //Get all eth fees from factory
     function retriveETH() external onlyOwner {
         feeReceiver.sendValue(address(this).balance);
+        emit ETHRetrived(msg.sender);
     }
 
+    //Used to retrive tokens which are sent here
     function retriveToken(address token) external onlyOwner {
         IERC20 iToken = IERC20(token);
-        uint amount = iToken.balanceOf(address(this));
+        uint256 amount = iToken.balanceOf(address(this));
         iToken.safeTransfer(msg.sender, amount);
-        emit sentToken(token, amount);
+        emit SentToken(token, amount);
     }
-
 }

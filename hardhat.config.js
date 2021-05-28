@@ -1,6 +1,7 @@
 require("@nomiclabs/hardhat-waffle");
 require("@nomiclabs/hardhat-etherscan");
 require("@nomiclabs/hardhat-ethers");
+require('hardhat-log-remover');
 require("hardhat-deploy-ethers");
 require("hardhat-deploy");
 require("hardhat-gas-reporter");

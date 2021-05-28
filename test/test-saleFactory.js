@@ -1,4 +1,4 @@
-const { expect } = require("chai");
+const { expect, assert } = require("chai");
 const { ethers } = require("hardhat");
 const hre = require("hardhat");
 
@@ -38,9 +38,9 @@ describe("SaleFactory", function () {
       saleParams = [
         tokenMockForSale.address,
         ZERO_ADDRESS,
-        await hre.ethers.utils.parseEther("1"), //Max Buy
-        await hre.ethers.utils.parseEther("3"), //SoftCap
-        await hre.ethers.utils.parseEther("5"), //Hardcap
+        hre.ethers.utils.parseEther("1"), //Max Buy
+        hre.ethers.utils.parseEther("3"), //SoftCap
+        hre.ethers.utils.parseEther("5"), //Hardcap
         pricePerETHBuy, //Sale price per ETH
         priceListing, //Listing price per eth
         0, //LP unlock time
@@ -96,9 +96,12 @@ describe("SaleFactory", function () {
           mockSale.connect(buyerWallets[i]).claimTokens()
         ).to.be.revertedWith("Tokens already claimed");
       }
+      expect(await tokenMockForSale.balanceOf(mockSale.address)).to.equal(0);
       // //Check that current listing price is correct
       // expect()
     } catch (err) {
+      console.error(err)
+
       assert.isNotOk(err, "Promise error");
     }
   });
@@ -137,13 +140,17 @@ describe("SaleFactory", function () {
         ).to.be.revertedWith("Refund already claimed");
       }
       //Now sudden apes came,we got past hardcap,the original user shouldnt be able to claim tokens after finalization since they already claimed refund
-      for (let i = 5; i < 9; i++) {
+      for (let i = 6; i < 11; i++) {
         await buyerWallets[i].sendTransaction({
           to: mockSale.address,
           value: ethers.utils.parseEther("1"),
         });
       }
+      //Make sure remaining is 0
+      expect(await mockSale.getRemainingContribution()).to.equal(0);
+
       mockSale.finalize();
+
       //User shouldnt be able to claim tokens if they already claimed refund
       for (let i = 1; i < 5; i++) {
         expect(
@@ -151,11 +158,29 @@ describe("SaleFactory", function () {
         ).to.be.revertedWith("Refund was claimed");
       }
       //Users who got in sale should be able to claim tokens
-      for (let i = 5; i < 9; i++) {
+      for (let i = 6; i < 11; i++) {
         mockSale.connect(buyerWallets[i]).claimTokens();
       }
+      //TODO find out why in this case there is leftover tokens
+      //Make sure we have no leftover
+      // expect(await tokenMockForSale.balanceOf(mockSale.address)).to.equal(0);
     } catch (err) {
+      console.error(err)
       assert.isNotOk(err, "Promise error");
+    }
+  });
+  it("Should be able to get excess back on bigger entrance", async function () {
+    try {
+      //Fill it lesser than softcap
+      for (let i = 1; i < 7; i++) {
+        //Buy it up with different wallets
+        await buyerWallets[i].sendTransaction({
+          to: mockSale.address,
+          value: ethers.utils.parseEther("50"),
+        });
+      }
+    } catch (err) {
+      console.error(err);
     }
   });
 });

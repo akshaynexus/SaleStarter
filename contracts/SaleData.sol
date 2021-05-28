@@ -1,7 +1,9 @@
+//SPDX-License-Identifier: MIT
+pragma solidity ^0.8.3;
 import "./interfaces/IBaseSale.sol";
 import "./interfaces/ISaleFactory.sol";
-contract SaleData {
 
+contract SaleData {
     ISaleFactory iSaleFactory;
 
     constructor(address _saleFactory) {
@@ -22,11 +24,7 @@ contract SaleData {
         }
     }
 
-    function getParticipatedSalesCount(address user)
-        public
-        view
-        returns (uint256 count)
-    {
+    function getParticipatedSalesCount(address user) public view returns (uint256 count) {
         address[] memory allSales = iSaleFactory.getAllSales();
 
         for (uint256 i = 0; i < allSales.length; i++) {
@@ -37,7 +35,7 @@ contract SaleData {
         }
     }
 
-    function getRefundableSalesCount() public view returns (uint count) {
+    function getRefundableSalesCount() public view returns (uint256 count) {
         address[] memory allSales = iSaleFactory.getAllSales();
 
         for (uint256 i = 0; i < allSales.length; i++) {
@@ -50,7 +48,7 @@ contract SaleData {
 
     function getRefundableSales() public view returns (address[] memory salesRefundable) {
         salesRefundable = new address[](getRefundableSalesCount());
-        uint count = 0;
+        uint256 count = 0;
         for (uint256 i = 0; i < salesRefundable.length; i++) {
             IBaseSale refSale = IBaseSale(payable(salesRefundable[i]));
             if (refSale.shouldRefundWithBal()) {
@@ -60,11 +58,7 @@ contract SaleData {
         }
     }
 
-    function getParticipatedSalesRefundable(address user)
-        public
-        view
-        returns (uint256 count)
-    {
+    function getParticipatedSalesRefundable(address user) public view returns (uint256 count) {
         address[] memory allSales = iSaleFactory.getAllSales();
 
         for (uint256 i = 0; i < allSales.length; i++) {
@@ -74,11 +68,8 @@ contract SaleData {
             }
         }
     }
-    function getSalesActive()
-        external
-        view
-        returns (address[] memory activeSales)
-    {
+
+    function getSalesActive() external view returns (address[] memory activeSales) {
         address[] memory allSales = iSaleFactory.getAllSales();
         uint256 count = 0;
         activeSales = new address[](getActiveSalesCount());
@@ -91,11 +82,7 @@ contract SaleData {
         }
     }
 
-    function getSalesUserIsIn(address user)
-        external
-        view
-        returns (address[] memory salesParticipated)
-    {
+    function getSalesUserIsIn(address user) external view returns (address[] memory salesParticipated) {
         address[] memory allSales = iSaleFactory.getAllSales();
         uint256 count = 0;
         salesParticipated = new address[](getParticipatedSalesCount(user));
@@ -108,11 +95,7 @@ contract SaleData {
         }
     }
 
-    function getSalesRefundableForUser(address user)
-        external
-        view
-        returns (address[] memory salesRefundable)
-    {
+    function getSalesRefundableForUser(address user) external view returns (address[] memory salesRefundable) {
         address[] memory allSales = iSaleFactory.getAllSales();
         uint256 count = 0;
         salesRefundable = new address[](getParticipatedSalesRefundable(user));
