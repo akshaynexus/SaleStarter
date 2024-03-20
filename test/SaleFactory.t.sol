@@ -203,7 +203,7 @@ contract SaleFactoryTest is Test {
         vm.startPrank(owner);
         tokenMockForSale.approve(address(saleFactory), 0);
 
-        vm.expectRevert("ERC20: transfer amount exceeds allowance");
+        vm.expectRevert("ERC20: insufficient allowance");
         saleFactory.deploySale(saleParams);
         vm.stopPrank();
     }
