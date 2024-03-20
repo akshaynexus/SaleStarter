@@ -453,7 +453,6 @@ contract SaleFactoryTest is Test {
             contributeToBuy(buyerWallets[i], 1 ether);
         }
 
-        uint256 factoryBalanceBefore = address(saleFactory).balance;
         _finalizeSale();
         uint256 expectedFeeToFactory = (5 ether * 200) / 10000;
 
