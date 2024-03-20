@@ -1,5 +1,6 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
+
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Factory.sol";
 import "./interfaces/ISaleFactory.sol";
@@ -49,17 +50,12 @@ contract BaseSale is ReentrancyGuard {
     event SentToken(address token, uint256 amount);
     event Finalized();
 
-    modifier onlySaleCreator {
+    modifier onlySaleCreator() {
         require(msg.sender == saleConfig.creator, "Caller is not sale creator");
         _;
     }
 
-    modifier onlySaleFactoryOwner {
-        require(msg.sender == saleSpawner.owner(), "Caller is not sale creator or factory allowed");
-        _;
-    }
-
-    modifier onlySaleCreatororFactoryOwner {
+    modifier onlySaleCreatororFactoryOwner() {
         require(
             msg.sender == saleConfig.creator || msg.sender == address(saleSpawner) || msg.sender == saleSpawner.owner(),
             "Caller is not sale creator or factory allowed"
@@ -73,9 +69,8 @@ contract BaseSale is ReentrancyGuard {
     }
 
     function saleStarted() public view returns (bool) {
-        return
-            (saleInfo.saleForceStarted || block.timestamp >= saleConfig.startTime) &&
-            token.balanceOf(address(this)) >= getRequiredAllocationOfTokens();
+        return (saleInfo.saleForceStarted || block.timestamp >= saleConfig.startTime)
+            && token.balanceOf(address(this)) >= getRequiredAllocationOfTokens();
     }
 
     function isSaleOver() public view returns (bool) {
@@ -87,7 +82,7 @@ contract BaseSale is ReentrancyGuard {
         uint256 fundingDecimals = getFundingDecimals();
         if (fundingDecimals == 18) return input;
         uint256 toScaleDown = getFundingDecimals() - token.decimals();
-        return input / 10**toScaleDown;
+        return input / 10 ** toScaleDown;
     }
 
     function getFundingDecimals() public view returns (uint256) {
@@ -155,17 +150,21 @@ contract BaseSale is ReentrancyGuard {
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew) public {
         require(!saleInfo.initialized, "Already initialized");
         saleConfig = saleConfigNew;
-        router = IUniswapV2Router02(saleConfigNew.router);
+        router = IUniswapV2Router02(saleConfig.router);
         token = ERC20(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
-        if (saleConfigNew.fundingToken != address(0)) fundingToken = ERC20(saleConfigNew.fundingToken);
+        if (saleConfig.fundingToken != address(0)) fundingToken = ERC20(saleConfig.fundingToken);
         weth = IWETH(router.WETH());
-        if (saleConfigNew.lpUnlockTime > 0)
+        if (saleConfig.lpUnlockTime > 0) {
             lpLocker = new ExtendableTokenLocker(
-                createPair(address(fundingToken) == address(0) ? address(weth) : address(saleConfigNew.fundingToken), address(token)),
-                saleConfigNew.creator,
-                saleConfigNew.lpUnlockTime
+                createPair(
+                    address(fundingToken) == address(0) ? address(weth) : address(saleConfig.fundingToken),
+                    address(token)
+                ),
+                saleConfig.creator,
+                saleConfig.lpUnlockTime
             );
+        }
         saleInfo.initialized = true;
     }
 
@@ -191,9 +190,13 @@ contract BaseSale is ReentrancyGuard {
         _handlePurchase(msg.sender, _amount);
     }
 
-    function calculateLimitForUser(uint256 contributedAmount, uint256 value) internal view returns (uint256 limit) {
-        limit = saleInfo.totalRaised + value > saleConfig.hardCap ? (saleInfo.totalRaised + value) - saleConfig.hardCap : value;
-        limit = (contributedAmount + limit) > saleConfig.maxBuy ? Math.min(saleConfig.maxBuy, this.getRemainingContribution()) : limit;
+    function calculateLimitForUser(uint256 contributedAmount, uint256 value) public view returns (uint256 limit) {
+        limit = saleInfo.totalRaised + value > saleConfig.hardCap
+            ? (saleInfo.totalRaised + value) - saleConfig.hardCap
+            : value;
+        limit = (contributedAmount + limit) > saleConfig.maxBuy
+            ? Math.min(saleConfig.maxBuy, this.getRemainingContribution())
+            : limit;
     }
 
     function _handlePurchase(address user, uint256 value) internal {
@@ -245,11 +248,13 @@ contract BaseSale is ReentrancyGuard {
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
+        saleInfo.totalRaised -= userDataSender.contributedAmount;
+        saleInfo.totalTokensToKeep -= saleInfo.totalTokensToKeep > 0 ? userDataSender.tokensClaimable : 0;
 
         userDataSender.refundTaken = true;
         _handleFundingTransfer(msg.sender, userDataSender.contributedAmount);
+        userDataSender.contributedAmount = 0;
         //If this refund was called when refund was not enabled and under hardcap reduce from total raised
-        saleInfo.totalRaised -= userDataSender.contributedAmount;
         emit Refunded(msg.sender, userDataSender.contributedAmount);
     }
 
@@ -265,11 +270,12 @@ contract BaseSale is ReentrancyGuard {
 
         userDataSender.tokensClaimed = true;
         token.safeTransfer(msg.sender, userDataSender.tokensClaimable);
+        userDataSender.tokensClaimable = 0;
         emit TokensClaimed(msg.sender, userDataSender.tokensClaimable);
     }
 
     // Admin only functions
-    function enableRefunds() external onlySaleCreatororFactoryOwner {
+    function enableRefunds() public onlySaleCreatororFactoryOwner {
         saleInfo.refundEnabled = true;
         saleInfo.totalTokensToKeep = 0;
     }
@@ -279,13 +285,14 @@ contract BaseSale is ReentrancyGuard {
     }
 
     function cancelSale() external onlySaleCreatororFactoryOwner {
-        this.enableRefunds();
+        enableRefunds();
         //Send back tokens to creator of the sale
-        token.transfer(saleConfig.creator, token.balanceOf(address(this)));
+        token.safeTransfer(saleConfig.creator, token.balanceOf(address(this)));
     }
 
-    //Recover any tokens thats sent to BaseSale by factory owner
-    function recoverTokens(address _token) external onlySaleFactoryOwner {
+    //Recover any tokens thats sent to BaseSale
+    function recoverTokens(address _token) external onlySaleCreatororFactoryOwner {
+        require(_token != saleConfig.token, "Cant recover sale token");
         IERC20 iToken = IERC20(_token);
         uint256 amount = iToken.balanceOf(address(this));
         iToken.safeTransfer(msg.sender, amount);
@@ -293,11 +300,7 @@ contract BaseSale is ReentrancyGuard {
     }
 
     //This function takes care of adding liq to the specified base pair
-    function addLiquidity(
-        uint256 fundingAmount,
-        uint256 tokenAmount,
-        bool fETH
-    ) internal {
+    function addLiquidity(uint256 fundingAmount, uint256 tokenAmount, bool fETH) internal {
         //If this is ETH,deposit in WETH from contract
         if (fETH) {
             weth.deposit{value: fundingAmount}();
@@ -322,6 +325,7 @@ contract BaseSale is ReentrancyGuard {
     function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
         require(saleInfo.totalRaised > saleConfig.softCap, "Raise amount didnt pass softcap");
         require(!saleInfo.finalized, "Sale already finalized");
+        // require(saleInfo.totalRaised >= saleConfig.hardCap,"Didnt go to hardcap");
 
         uint256 FundingBudget = saleInfo.totalRaised;
 
@@ -335,9 +339,9 @@ contract BaseSale is ReentrancyGuard {
 
         //Send fee to factory
         uint256 feeToFactory = (saleInfo.totalRaised * saleSpawner.getETHFee()) / DIVISOR;
+        FundingBudget -= feeToFactory;
         _handleFundingTransfer(address(saleSpawner), feeToFactory);
         emit FactoryFeeSent(feeToFactory);
-        FundingBudget -= feeToFactory;
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
         //Approve router to spend tokens

@@ -14,7 +14,7 @@ contract BurnableToken is ERC20Burnable, Ownable {
      * @notice Allows owner to mint new tokens
      * @param amount the amount of tokens to mint
      */
-    function mint(uint256 amount) public onlyOwner {
-        _mint(owner(), amount);
+    function mint(uint256 amount) public {
+        _mint(msg.sender, amount);
     }
 }

@@ -10,3 +10,5 @@ reports
 build
 frontend/src/hardhat/typechain/
 deployments/
+out/
+cache_forge/

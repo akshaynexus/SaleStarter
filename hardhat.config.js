@@ -5,6 +5,7 @@ require('hardhat-log-remover');
 require("hardhat-deploy-ethers");
 require("hardhat-deploy");
 require("hardhat-gas-reporter");
+require("@nomicfoundation/hardhat-foundry");
 
 const { mnemonic, AlchemyProjID, EtherscanAPIKey } = require("./secrets.json");
 

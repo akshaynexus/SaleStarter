@@ -26,23 +26,16 @@ contract ExtendableTokenLocker {
     event BeneficiaryUpdated(address newBeneficiary);
     event LockTimeExtended(uint256 secondsAdded, uint256 newLockTime);
 
-    constructor(
-        IERC20 token_,
-        address beneficiary_,
-        uint256 releaseTime_
-    ) {
+    constructor(IERC20 token_, address beneficiary_, uint256 releaseTime_) {
         // solhint-disable-next-line not-rely-on-time
-        require(
-            releaseTime_ > block.timestamp,
-            "ExtendableTokenLocker: release time is before current time"
-        );
+        require(releaseTime_ > block.timestamp, "ExtendableTokenLocker: release time is before current time");
         _token = token_;
         _beneficiary = beneficiary_;
         _releaseTime = releaseTime_;
     }
 
-    modifier onlyBeneficiary {
-        require(msg.sender == _beneficiary);
+    modifier onlyBeneficiary() {
+        require(msg.sender == _beneficiary, "ExtendableTokenLocker: caller is not the beneficiary");
         _;
     }
 
@@ -72,10 +65,7 @@ contract ExtendableTokenLocker {
      */
     function release() public virtual {
         // solhint-disable-next-line not-rely-on-time
-        require(
-            block.timestamp >= releaseTime(),
-            "ExtendableTokenLocker: current time is before release time"
-        );
+        require(block.timestamp >= releaseTime(), "ExtendableTokenLocker: current time is before release time");
 
         uint256 amount = token().balanceOf(address(this));
         require(amount > 0, "ExtendableTokenLocker: no tokens to release");
@@ -92,10 +82,7 @@ contract ExtendableTokenLocker {
         _tokenInternal.safeTransfer(beneficiary(), amount);
     }
 
-    function transferBeneficiary(address newBeneficiary)
-        external
-        onlyBeneficiary
-    {
+    function transferBeneficiary(address newBeneficiary) external onlyBeneficiary {
         _beneficiary = newBeneficiary;
         emit BeneficiaryUpdated(newBeneficiary);
     }

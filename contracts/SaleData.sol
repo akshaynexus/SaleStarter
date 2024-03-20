@@ -1,5 +1,6 @@
 //SPDX-License-Identifier: MIT
 pragma solidity ^0.8.3;
+
 import "./interfaces/IBaseSale.sol";
 import "./interfaces/ISaleFactory.sol";
 
@@ -40,20 +41,24 @@ contract SaleData {
 
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
+
             if (refSale.shouldRefundWithBal()) {
                 count++;
             }
         }
+        return count;
     }
 
     function getRefundableSales() public view returns (address[] memory salesRefundable) {
-        salesRefundable = new address[](getRefundableSalesCount());
-        uint256 count = 0;
-        for (uint256 i = 0; i < salesRefundable.length; i++) {
-            IBaseSale refSale = IBaseSale(payable(salesRefundable[i]));
+        address[] memory allSales = iSaleFactory.getAllSales();
+        uint256 count = getRefundableSalesCount();
+        salesRefundable = new address[](count);
+        uint256 index = 0;
+        for (uint256 i = 0; i < allSales.length; i++) {
+            IBaseSale refSale = IBaseSale(payable(allSales[i]));
             if (refSale.shouldRefundWithBal()) {
-                salesRefundable[count] = address(refSale);
-                count++;
+                salesRefundable[index] = address(refSale);
+                index++;
             }
         }
     }
@@ -71,39 +76,42 @@ contract SaleData {
 
     function getSalesActive() external view returns (address[] memory activeSales) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = 0;
-        activeSales = new address[](getActiveSalesCount());
+        uint256 count = getActiveSalesCount();
+        activeSales = new address[](count);
+        uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
             if (!refSale.isSaleOver() && refSale.saleStarted()) {
-                activeSales[count] = allSales[i];
-                count++;
+                activeSales[index] = allSales[i];
+                index++;
             }
         }
     }
 
     function getSalesUserIsIn(address user) external view returns (address[] memory salesParticipated) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = 0;
-        salesParticipated = new address[](getParticipatedSalesCount(user));
+        uint256 count = getParticipatedSalesCount(user);
+        salesParticipated = new address[](count);
+        uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
             if (refSale.userData(user).contributedAmount > 0) {
-                salesParticipated[count] = allSales[i];
-                count++;
+                salesParticipated[index] = allSales[i];
+                index++;
             }
         }
     }
 
     function getSalesRefundableForUser(address user) external view returns (address[] memory salesRefundable) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = 0;
-        salesRefundable = new address[](getParticipatedSalesRefundable(user));
+        uint256 count = getParticipatedSalesRefundable(user);
+        salesRefundable = new address[](count);
+        uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
             if (refSale.userEligibleToClaimRefund(user)) {
-                salesRefundable[count] = allSales[i];
-                count++;
+                salesRefundable[index] = allSales[i];
+                index++;
             }
         }
     }
