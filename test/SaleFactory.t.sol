@@ -7,7 +7,7 @@ import "../contracts/SaleData.sol";
 import "../contracts/BaseSale.sol";
 import "../contracts/mock/BurnableToken.sol";
 
-contract SaleFactoryTest is Test {
+contract SaleFactoryTestV2 is Test {
     SaleFactory public saleFactory;
     SaleData public saleData;
     BaseSale public mockSale;
@@ -56,7 +56,8 @@ contract SaleFactoryTest is Test {
             detailsJSON: "",
             router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
             creator: owner,
-            teamShare: (20 * 100)
+            teamShare: (20 * 100),
+            isV3: false
         });
 
         address payable mockSaleAddress = saleFactory.deploySale(saleParams);
@@ -191,7 +192,8 @@ contract SaleFactoryTest is Test {
             detailsJSON: "",
             router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
             creator: owner,
-            teamShare: (20 * 100)
+            teamShare: (20 * 100),
+            isV3: false
         });
 
         vm.expectRevert("Sale hardcap is lesser than softcap");
