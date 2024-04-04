@@ -92,7 +92,7 @@ contract SaleFactoryTestV2 is Test {
     function _fillTheSale() internal {
         uint256 ethRequired = mockSale.getRemainingContribution();
 
-        for (uint256 i = 5; ethRequired >= 0; i++) {
+        for (uint256 i = 1; ethRequired >= 0; i++) {
             uint256 amountToBuy = mockSale.calculateLimitForUser(address(mockSale).balance, 100 ether);
             if (amountToBuy == 0) return;
             contributeToBuy(buyerWallets[i], amountToBuy);
@@ -101,9 +101,6 @@ contract SaleFactoryTestV2 is Test {
     }
 
     function testEnoughAllocationPerEth() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
         _fillTheSale();
 
         assertEq(mockSale.calculateTokensClaimable(1 ether), 5 ether, "Allocation per ETH should be correct");
@@ -212,9 +209,6 @@ contract SaleFactoryTestV2 is Test {
 
     // Test finalizing a sale and ensure the team share is sent to the creator
     function testFinalizeTeamShare() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
         _fillTheSale();
 
         uint256 creatorBalanceBefore = address(owner).balance;
@@ -228,10 +222,6 @@ contract SaleFactoryTestV2 is Test {
 
     // Test finalizing a sale and ensure the factory fee is sent to the factory contract
     function testFinalizeFactoryFee() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
-
         uint256 factoryBalanceBefore = address(saleFactory).balance;
         _fillTheSale();
         _finalizeSale();
@@ -252,10 +242,6 @@ contract SaleFactoryTestV2 is Test {
         tokenMockForSale.mint(excessTokens);
         tokenMockForSale.transfer(address(mockSale), excessTokens);
         assertEq(tokenMockForSale.balanceOf(owner), 0, "we have more than 0");
-
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
 
         _fillTheSale();
         // uint256 excessReal = tokenMockForSale.balanceOf(address(mockSale)) - mockSale.getRequiredAllocationOfTokens();
