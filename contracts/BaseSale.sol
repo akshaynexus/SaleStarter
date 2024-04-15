@@ -184,7 +184,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         if (!isETHSale()) {
             fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
         } else {
-            _amount = msg.value;
+           require( _amount == msg.value,"!val");
         }
         _handlePurchase(msg.sender, _amount);
     }
