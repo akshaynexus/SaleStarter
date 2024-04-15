@@ -3,11 +3,7 @@ pragma solidity ^0.8.3;
 
 import "../libraries/CommonStructures.sol";
 
-interface IBaseSale {
-    function saleConfig() external view returns (CommonStructures.SaleConfig memory);
-    function saleInfo() external view returns (CommonStructures.SaleInfo memory);
-    function userData(address user) external view returns (CommonStructures.UserData memory);
-
+interface IBaseSaleWithoutStructures {
     function isETHSale() external view returns (bool);
     function saleStarted() external view returns (bool);
     function isSaleOver() external view returns (bool);
@@ -32,4 +28,11 @@ interface IBaseSale {
     function cancelSale() external;
     function recoverTokens(address _token) external;
     function finalize() external;
+}
+
+//Note : Use this interface to interact with a base sale if you need to
+interface IBaseSale is IBaseSaleWithoutStructures {
+    function saleConfig() external view returns (CommonStructures.SaleConfig memory);
+    function saleInfo() external view returns (CommonStructures.SaleInfo memory);
+    function userData(address user) external view returns (CommonStructures.UserData memory);
 }

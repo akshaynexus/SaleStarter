@@ -7,8 +7,8 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Factory.sol";
 import "./interfaces/ISaleFactory.sol";
+import "./interfaces/IBaseSale.sol";
 
-import "./libraries/CommonStructures.sol";
 import "./ExtendableTokenLocker.sol";
 
 interface IERC20D is IERC20 {
@@ -19,7 +19,7 @@ interface IWETH is IERC20 {
     function deposit() external payable;
 }
 
-contract BaseSale is ReentrancyGuard {
+contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using SafeERC20 for IERC20D;
     using Address for address;
     using Address for address payable;
