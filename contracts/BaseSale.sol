@@ -320,50 +320,68 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         );
     }
 
-    //NOTE: Do not add liq before sale finalizes or finalize will fail if price on pair is different from the configured listing price
-    //This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
+    // This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
     function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
         require(saleInfo.totalRaised > saleConfig.softCap, "Raise amount didnt pass softcap");
         require(!saleInfo.finalized, "Sale already finalized");
         // require(saleInfo.totalRaised >= saleConfig.hardCap,"Didnt go to hardcap");
 
-        uint256 FundingBudget = saleInfo.totalRaised;
-
-        //Send team their eth
-        if (saleConfig.teamShare > 0) {
-            uint256 teamShare = (saleInfo.totalRaised * saleConfig.teamShare) / DIVISOR;
-            FundingBudget -= teamShare;
-            _handleFundingTransfer(saleConfig.creator, teamShare);
-            emit TeamShareSent(saleConfig.creator, teamShare);
-        }
-
-        //Send fee to factory
-        uint256 feeToFactory = (saleInfo.totalRaised * saleSpawner.getETHFee()) / DIVISOR;
-        FundingBudget -= feeToFactory;
-        _handleFundingTransfer(address(saleSpawner), feeToFactory);
-        emit FactoryFeeSent(feeToFactory);
+        uint256 FundingBudget = _handleFactoryFee(_handleTeamShare(saleInfo.totalRaised));
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
-        //Approve router to spend tokens
+
         token.safeApprove(address(router), type(uint256).max);
-        //Add liq as given
-        uint256 tokensToAdd = getTokensToAdd(FundingBudget);
-        addLiquidity(FundingBudget, tokensToAdd, isETHSale());
-
-        //If we have excess send it to factory
-        uint256 remain = getFundingBalance();
-        if (remain > 0) {
-            _handleFundingTransfer(address(saleSpawner), remain);
-        }
-
-        //If we have excess tokens after finalization send that to the creator
-        uint256 remainToken = token.balanceOf(address(this));
-        if (remainToken > saleInfo.totalTokensToKeep) {
-            token.safeTransfer(saleConfig.creator, remainToken - saleInfo.totalTokensToKeep);
-            require(token.balanceOf(address(this)) == saleInfo.totalTokensToKeep, "we have more leftover");
-        }
+        _addLiquidity(FundingBudget);
+        _handleExcess();
 
         saleInfo.finalized = true;
         emit Finalized();
+    }
+
+    /// @dev Handles the team's share of the raised funds.
+    /// @param fundingBudget The current funding budget.
+    /// @return The updated funding budget after deducting the team's share.
+    function _handleTeamShare(uint256 fundingBudget) internal returns (uint256) {
+        if (saleConfig.teamShare > 0) {
+            uint256 teamShare = (saleInfo.totalRaised * saleConfig.teamShare) / DIVISOR;
+            fundingBudget -= teamShare;
+            _handleFundingTransfer(saleConfig.creator, teamShare);
+            emit TeamShareSent(saleConfig.creator, teamShare);
+        }
+        return fundingBudget;
+    }
+
+    /// @dev Handles the factory fee.
+    /// @param fundingBudget The current funding budget.
+    /// @return The updated funding budget after deducting the factory fee.
+    function _handleFactoryFee(uint256 fundingBudget) internal returns (uint256) {
+        uint256 feeToFactory = (saleInfo.totalRaised * saleSpawner.getETHFee()) / DIVISOR;
+        fundingBudget -= feeToFactory;
+        _handleFundingTransfer(address(saleSpawner), feeToFactory);
+        emit FactoryFeeSent(feeToFactory);
+        return fundingBudget;
+    }
+
+    /// @dev Adds liquidity to the specified DEX.
+    /// @param fundingBudget The funding budget for adding liquidity.
+    function _addLiquidity(uint256 fundingBudget) internal {
+        uint256 tokensToAdd = getTokensToAdd(fundingBudget);
+        addLiquidity(fundingBudget, tokensToAdd, isETHSale());
+    }
+
+    /// @dev Handles excess funding and tokens after the sale is finalized.
+    function _handleExcess() internal {
+        // If we have excess funding, send it to the factory
+        uint256 remainingFunding = getFundingBalance();
+        if (remainingFunding > 0) {
+            _handleFundingTransfer(address(saleSpawner), remainingFunding);
+        }
+
+        // If we have excess tokens after finalization, send them to the creator
+        uint256 remainingTokens = token.balanceOf(address(this));
+        if (remainingTokens > saleInfo.totalTokensToKeep) {
+            token.safeTransfer(saleConfig.creator, remainingTokens - saleInfo.totalTokensToKeep);
+            require(token.balanceOf(address(this)) == saleInfo.totalTokensToKeep, "we have more leftover");
+        }
     }
 }
