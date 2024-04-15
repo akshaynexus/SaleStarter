@@ -83,8 +83,8 @@ contract SaleFactoryTest is Test {
         vm.deal(buyer, 0);
         vm.deal(buyer, amount);
         vm.startPrank(buyer);
-        (bool success,) = address(mockSale).call{value: amount}(abi.encodeWithSignature("buyTokens()"));
-        require(success, "buyTokens failed");
+        (bool success,) = address(mockSale).call{value: amount}("");
+        require(success, "buying tokens failed");
         vm.stopPrank();
     }
 

@@ -24,8 +24,7 @@ interface IBaseSale {
     function userEligibleToClaimRefund(address user) external view returns (bool);
 
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew) external;
-    function buyTokens() external payable;
-    function contributeTokens(uint256 _amount) external;
+    function contribute(uint256 _amount) external payable;
     function getRefund() external;
     function claimTokens() external;
     function enableRefunds() external;

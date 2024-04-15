@@ -1,23 +1,26 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
 
-import "./interfaces/IUniswapV2Router02.sol";
-import "./interfaces/IUniswapV2Factory.sol";
-import "./interfaces/ISaleFactory.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
+import "./interfaces/IUniswapV2Router02.sol";
+import "./interfaces/IUniswapV2Factory.sol";
+import "./interfaces/ISaleFactory.sol";
+
 import "./libraries/CommonStructures.sol";
 import "./ExtendableTokenLocker.sol";
+
+interface IERC20D is IERC20 {
+    function decimals() external view returns (uint8);
+}
 
 interface IWETH is IERC20 {
     function deposit() external payable;
 }
 
 contract BaseSale is ReentrancyGuard {
-    using SafeERC20 for ERC20;
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20D;
     using Address for address;
     using Address for address payable;
 
@@ -35,8 +38,8 @@ contract BaseSale is ReentrancyGuard {
 
     IUniswapV2Router02 internal router;
 
-    ERC20 internal token;
-    ERC20 internal fundingToken;
+    IERC20D internal token;
+    IERC20D internal fundingToken;
     IWETH internal weth;
 
     ExtendableTokenLocker public lpLocker;
@@ -139,11 +142,11 @@ contract BaseSale is ReentrancyGuard {
     }
 
     //This creates and returns the pair for the sale if it doesnt exist
-    function createPair(address baseToken, address saleToken) internal returns (IERC20) {
+    function createPair(address baseToken, address saleToken) internal returns (IERC20D) {
         IUniswapV2Factory factory = IUniswapV2Factory(router.factory());
         address curPair = factory.getPair(baseToken, saleToken);
-        if (curPair != address(0)) return IERC20(curPair);
-        return IERC20(factory.createPair(baseToken, saleToken));
+        if (curPair != address(0)) return IERC20D(curPair);
+        return IERC20D(factory.createPair(baseToken, saleToken));
     }
 
     //This is the initializer so that minimal proxy clones can be initialized once
@@ -151,9 +154,9 @@ contract BaseSale is ReentrancyGuard {
         require(!saleInfo.initialized, "Already initialized");
         saleConfig = saleConfigNew;
         router = IUniswapV2Router02(saleConfig.router);
-        token = ERC20(saleConfig.token);
+        token = IERC20D(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
-        if (saleConfig.fundingToken != address(0)) fundingToken = ERC20(saleConfig.fundingToken);
+        if (saleConfig.fundingToken != address(0)) fundingToken = IERC20D(saleConfig.fundingToken);
         weth = IWETH(router.WETH());
         if (saleConfig.lpUnlockTime > 0) {
             lpLocker = new ExtendableTokenLocker(
@@ -170,23 +173,19 @@ contract BaseSale is ReentrancyGuard {
 
     receive() external payable {
         if (msg.sender != address(router)) {
-            buyTokens();
+            contribute(msg.value);
         }
     }
 
-    //Upon receiving ETH This is called
-    function buyTokens() public payable nonReentrant {
-        require(isETHSale(), "This sale does not accept ETH");
-        require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
-        _handlePurchase(msg.sender, msg.value);
-    }
-
     //This function is used to contribute to sales that arent taking eth as contrib
-    function contributeTokens(uint256 _amount) public nonReentrant {
-        require(!isETHSale(), "This sale accepts ETH, use buyTokens instead");
+    function contribute(uint256 _amount) public payable nonReentrant {
         require(saleStarted() && !saleInfo.refundEnabled, "Not started yet");
         //Transfer funding token to this address
-        fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
+        if (!isETHSale()) {
+            fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
+        } else {
+            _amount = msg.value;
+        }
         _handlePurchase(msg.sender, _amount);
     }
 
@@ -248,6 +247,7 @@ contract BaseSale is ReentrancyGuard {
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
+
         saleInfo.totalRaised -= userDataSender.contributedAmount;
         saleInfo.totalTokensToKeep -= saleInfo.totalTokensToKeep > 0 ? userDataSender.tokensClaimable : 0;
 
@@ -270,8 +270,8 @@ contract BaseSale is ReentrancyGuard {
 
         userDataSender.tokensClaimed = true;
         token.safeTransfer(msg.sender, userDataSender.tokensClaimable);
-        userDataSender.tokensClaimable = 0;
         emit TokensClaimed(msg.sender, userDataSender.tokensClaimable);
+        userDataSender.tokensClaimable = 0;
     }
 
     // Admin only functions
@@ -293,7 +293,7 @@ contract BaseSale is ReentrancyGuard {
     //Recover any tokens thats sent to BaseSale
     function recoverTokens(address _token) external onlySaleCreatororFactoryOwner {
         require(_token != saleConfig.token, "Cant recover sale token");
-        IERC20 iToken = IERC20(_token);
+        IERC20D iToken = IERC20D(_token);
         uint256 amount = iToken.balanceOf(address(this));
         iToken.safeTransfer(msg.sender, amount);
         emit SentToken(_token, amount);

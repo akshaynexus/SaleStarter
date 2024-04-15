@@ -48,12 +48,14 @@ contract SaleDataTest is Test {
         });
 
         tokenMock.approve(address(saleFactory), 100000 ether);
-        address payable mockSaleAddress1 = saleFactory.deploySale(saleConfig);
-        mockSale1 = BaseSale(mockSaleAddress1);
+        mockSale1 = BaseSale(payable(deploySale(saleConfig)));
 
         saleConfig.startTime = block.timestamp + 2000;
-        address payable mockSaleAddress2 = saleFactory.deploySale(saleConfig);
-        mockSale2 = BaseSale(mockSaleAddress2);
+        mockSale2 = BaseSale(payable(deploySale(saleConfig)));
+    }
+
+    function deploySale(CommonStructures.SaleConfig memory saleConfig) internal returns (address) {
+        return saleFactory.deploySale(saleConfig);
     }
 
     function testGetActiveSalesCount() public {
@@ -74,20 +76,12 @@ contract SaleDataTest is Test {
     function testGetParticipatedSalesCount() public {
         assertEq(saleData.getParticipatedSalesCount(buyerWallets[0]), 0);
 
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
 
         assertEq(saleData.getParticipatedSalesCount(buyerWallets[0]), 1);
         assertEq(saleData.getParticipatedSalesCount(buyerWallets[1]), 0);
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
 
         assertEq(saleData.getParticipatedSalesCount(buyerWallets[0]), 2);
         assertEq(saleData.getParticipatedSalesCount(buyerWallets[1]), 0);
@@ -96,45 +90,26 @@ contract SaleDataTest is Test {
     function testGetRefundableSalesCount() public {
         assertEq(saleData.getRefundableSalesCount(), 0);
 
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
         mockSale1.enableRefunds();
 
         assertEq(saleData.getRefundableSalesCount(), 1);
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
         mockSale2.enableRefunds();
 
         assertEq(saleData.getRefundableSalesCount(), 2);
     }
 
     function testGetRefundableSales() public {
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
         mockSale1.enableRefunds();
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
         mockSale2.enableRefunds();
 
         address[] memory refundableSales = saleData.getRefundableSales();
         assertEq(refundableSales.length, 2);
-        for (uint256 i = 0; i < refundableSales.length; i++) {
-            console.log(refundableSales[i]);
-        }
         assertEq(refundableSales[0], address(mockSale1));
         assertEq(refundableSales[1], address(mockSale2));
     }
@@ -142,21 +117,13 @@ contract SaleDataTest is Test {
     function testGetParticipatedSalesRefundable() public {
         assertEq(saleData.getParticipatedSalesRefundable(buyerWallets[0]), 0);
 
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
         mockSale1.enableRefunds();
 
         assertEq(saleData.getParticipatedSalesRefundable(buyerWallets[0]), 1);
         assertEq(saleData.getParticipatedSalesRefundable(buyerWallets[1]), 0);
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
         mockSale2.enableRefunds();
 
         assertEq(saleData.getParticipatedSalesRefundable(buyerWallets[0]), 2);
@@ -185,21 +152,13 @@ contract SaleDataTest is Test {
         address[] memory salesParticipated = saleData.getSalesUserIsIn(buyerWallets[0]);
         assertEq(salesParticipated.length, 0);
 
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
 
         salesParticipated = saleData.getSalesUserIsIn(buyerWallets[0]);
         assertEq(salesParticipated.length, 1);
         assertEq(salesParticipated[0], address(mockSale1));
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
 
         salesParticipated = saleData.getSalesUserIsIn(buyerWallets[0]);
         assertEq(salesParticipated.length, 2);
@@ -211,27 +170,28 @@ contract SaleDataTest is Test {
         address[] memory salesRefundable = saleData.getSalesRefundableForUser(buyerWallets[0]);
         assertEq(salesRefundable.length, 0);
 
-        vm.warp(block.timestamp + 1500);
-        mockSale1.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale1.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale1, buyerWallets[0]);
         mockSale1.enableRefunds();
 
         salesRefundable = saleData.getSalesRefundableForUser(buyerWallets[0]);
         assertEq(salesRefundable.length, 1);
         assertEq(salesRefundable[0], address(mockSale1));
 
-        vm.warp(block.timestamp + 2500);
-        mockSale2.forceStartSale();
-        vm.deal(buyerWallets[0], 1 ether);
-        vm.prank(buyerWallets[0]);
-        mockSale2.buyTokens{value: 1 ether}();
+        contributeTokens(mockSale2, buyerWallets[0]);
         mockSale2.enableRefunds();
 
         salesRefundable = saleData.getSalesRefundableForUser(buyerWallets[0]);
         assertEq(salesRefundable.length, 2);
         assertEq(salesRefundable[0], address(mockSale1));
         assertEq(salesRefundable[1], address(mockSale2));
+    }
+
+    function contributeTokens(BaseSale sale, address buyer) internal {
+        // vm.warp(sale.startTime() + 1500);
+        sale.forceStartSale();
+        vm.deal(buyer, 1 ether);
+        vm.prank(buyer);
+        (bool succ,) = address(sale).call{value: 1 ether}("");
+        require(succ);
     }
 }
