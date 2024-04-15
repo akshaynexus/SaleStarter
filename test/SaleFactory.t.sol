@@ -532,6 +532,7 @@ contract SaleFactoryTestV2 is Test {
         _forceStartSale();
         _fillTheSale();
         _finalizeSale();
+        //Try to finalize again but it will revert cause already finalized
         vm.expectRevert("Sale already finalized");
         _finalizeSale();
     }
