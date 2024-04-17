@@ -189,6 +189,11 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         _handlePurchase(msg.sender, _amount);
     }
 
+    //For frontend data to see how much a user can add to a sale
+    function getMaxContribForUser(address user) public view returns (uint256) {
+        return calculateLimitForUser(userData[user].contributedAmount,0);
+    }
+
     function calculateLimitForUser(uint256 contributedAmount, uint256 value) public view returns (uint256 limit) {
         limit = saleInfo.totalRaised + value > saleConfig.hardCap
             ? (saleInfo.totalRaised + value) - saleConfig.hardCap
@@ -201,6 +206,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     function _handlePurchase(address user, uint256 value) internal {
         //First check tx price,if higher than max gas price and gas limits are enabled reject it
         require(saleSpawner.checkTxPrice(tx.gasprice), "Above gas price limit");
+
         CommonStructures.UserData storage userDataSender = userData[user];
         uint256 FundsToContribute = calculateLimitForUser(userDataSender.contributedAmount, value);
         if (FundsToContribute == 0) {
@@ -253,9 +259,8 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         userDataSender.refundTaken = true;
         _handleFundingTransfer(msg.sender, userDataSender.contributedAmount);
-        userDataSender.contributedAmount = 0;
-        //If this refund was called when refund was not enabled and under hardcap reduce from total raised
         emit Refunded(msg.sender, userDataSender.contributedAmount);
+        userDataSender.contributedAmount = 0;
     }
 
     function claimTokens() external nonReentrant {
