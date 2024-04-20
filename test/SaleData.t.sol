@@ -4,9 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/SaleData.sol";
 import "../contracts/SaleFactory.sol";
-import "../contracts/BaseSale.sol";
 import "../contracts/mock/BurnableToken.sol";
-import "../contracts/interfaces/ISaleFactory.sol";
 
 contract SaleDataTest is Test {
     SaleData public saleData;
