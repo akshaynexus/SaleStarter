@@ -175,23 +175,8 @@ contract SaleFactoryTestV2 is Test {
 
     // Test deploying a sale with invalid parameters
     function testDeployInvalidSale() public {
-        CommonStructures.SaleConfig memory invalidSaleParams = CommonStructures.SaleConfig({
-            token: address(tokenMockForSale),
-            fundingToken: address(0),
-            maxBuy: 1 ether,
-            softCap: 5 ether, // Invalid: softCap greater than hardCap
-            hardCap: 4 ether,
-            salePrice: pricePerETHBuy,
-            listingPrice: priceListing,
-            startTime: block.timestamp + 6000,
-            lpUnlockTime: 0,
-            detailsJSON: "",
-            router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
-            creator: owner,
-            teamShare: (20 * 100),
-            isV3: false
-        });
-
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.softCap = 5 ether;// Invalid: softCap greater than hardCap
         vm.expectRevert("Sale hardcap is lesser than softcap");
         saleFactory.deploySale(invalidSaleParams);
     }
