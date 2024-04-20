@@ -72,13 +72,8 @@ contract SaleFactory is Ownable {
     function deploySale(CommonStructures.SaleConfig memory saleConfigNew) external returns (address payable newSale) {
         require(baseSale != address(0), "Base sale contract not set");
         require(saleConfigNew.token != address(0) && saleConfigNew.token.isContract(), "Token not set");
-        require(
-            saleConfigNew.fundingToken == address(0) || saleConfigNew.fundingToken.isContract(), "invalid funding token"
-        );
-        require(
-            saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
-            "Sale maxbuy is higher than valid range"
-        );
+        require(saleConfigNew.fundingToken == address(0) || saleConfigNew.fundingToken.isContract(), "invalid funding token");
+        require(saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,"Sale maxbuy is higher than valid range");
         require(saleConfigNew.creator != address(0), "Sale creator is empty");
         require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
         require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
