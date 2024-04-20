@@ -3,11 +3,6 @@ pragma solidity ^0.8.3;
 pragma experimental ABIEncoderV2;
 
 library CommonStructures {
-    // enum SaleTypes {
-    //     PRESALE,
-    //     DUTCH_AUCTION
-    // }
-
     struct SaleConfig {
         //The token being sold
         address token;
