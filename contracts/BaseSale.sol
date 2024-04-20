@@ -60,11 +60,6 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     event SentToken(address token, uint256 amount);
     event Finalized();
 
-    modifier onlySaleCreator() {
-        require(msg.sender == saleConfig.creator, "Caller is not sale creator");
-        _;
-    }
-
     modifier onlySaleCreatororFactoryOwner() {
         require(
             msg.sender == saleConfig.creator || msg.sender == address(saleSpawner) || msg.sender == saleSpawner.owner(),
