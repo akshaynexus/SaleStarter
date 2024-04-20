@@ -176,7 +176,7 @@ contract SaleFactoryTestV2 is Test {
     // Test deploying a sale with invalid parameters
     function testDeployInvalidSale() public {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
-        invalidSaleParams.softCap = 5 ether;// Invalid: softCap greater than hardCap
+        invalidSaleParams.softCap = 5 ether; // Invalid: softCap greater than hardCap
         vm.expectRevert("Sale hardcap is lesser than softcap");
         saleFactory.deploySale(invalidSaleParams);
     }

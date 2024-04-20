@@ -198,14 +198,14 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         if (!isETHSale()) {
             fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
         } else {
-           require( _amount == msg.value,"!val");
+            require(_amount == msg.value, "!val");
         }
         _handlePurchase(msg.sender, _amount);
     }
 
     //For frontend data to see how much a user can add to a sale
     function getMaxContribForUser(address user) public view returns (uint256) {
-        return calculateLimitForUser(userData[user].contributedAmount,0);
+        return calculateLimitForUser(userData[user].contributedAmount, 0);
     }
 
     function calculateLimitForUser(uint256 contributedAmount, uint256 value) public view returns (uint256 limit) {
