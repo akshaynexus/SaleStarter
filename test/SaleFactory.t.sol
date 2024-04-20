@@ -79,6 +79,10 @@ contract SaleFactoryTestV2 is Test {
         mockSale.forceStartSale();
     }
 
+    function _enableRefund() internal asOwner {
+        mockSale.enableRefunds();
+    }
+
     function contributeToBuy(address buyer, uint256 amount) internal {
         vm.deal(buyer, 0);
         vm.deal(buyer, amount);
@@ -244,8 +248,7 @@ contract SaleFactoryTestV2 is Test {
         vm.expectRevert("Caller is not sale creator or factory allowed");
         mockSale.forceStartSale();
 
-        vm.prank(owner);
-        mockSale.forceStartSale();
+        _forceStartSale();
         assertTrue(mockSale.saleStarted(), "Sale should be force started by the creator");
 
         vm.prank(saleFactory.owner());
@@ -259,8 +262,7 @@ contract SaleFactoryTestV2 is Test {
         vm.expectRevert("Caller is not sale creator or factory allowed");
         mockSale.enableRefunds();
 
-        vm.prank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         assertTrue(mockSale.shouldRefund(), "Refunds should be enabled by the creator");
 
         vm.prank(saleFactory.owner());
@@ -477,8 +479,7 @@ contract SaleFactoryTestV2 is Test {
     }
 
     function testbuyTokensWhenRefundsEnabled() public {
-        vm.startPrank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         vm.expectRevert("Not started yet");
         contributeToBuy(buyerWallets[0], 1 ether);
     }
@@ -492,8 +493,7 @@ contract SaleFactoryTestV2 is Test {
 
     function testClaimTokensWhenRefundsEnabled() public {
         contributeToBuy(buyerWallets[1], 1 ether);
-        vm.prank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         vm.expectRevert("Refunds enabled");
         vm.prank(buyerWallets[1]);
         mockSale.claimTokens();
