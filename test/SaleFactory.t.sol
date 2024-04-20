@@ -339,6 +339,14 @@ contract SaleFactoryTestV2 is Test {
         saleFactory.deploySale(invalidSaleParams);
     }
 
+    function testDeployInvalidCreatorNotCaller() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.creator = address(1);
+
+        vm.expectRevert("Creator doesnt match the caller");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
     function testDeployInvalidMaxBuy() public {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.maxBuy = type(uint256).max;
@@ -353,6 +361,42 @@ contract SaleFactoryTestV2 is Test {
 
         vm.expectRevert("invalid funding token");
         saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testDeployInvalidToken() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.token = address(0x123);
+
+        vm.expectRevert("Token not set");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testDeployTokenTransfer() public {
+        uint256 tokensNeeded = mockSale.getRequiredAllocationOfTokens();
+        uint256 initialTokenBalance = 0;
+
+        // Valid case: Sufficient tokens transferred to the sale contract
+        vm.startPrank(owner);
+        tokenMockForSale.mint(tokensNeeded);
+        tokenMockForSale.approve(address(saleFactory), tokensNeeded);
+        address payable newSale = saleFactory.deploySale(saleParams);
+        vm.stopPrank();
+
+        assertEq(
+            tokenMockForSale.balanceOf(newSale),
+            initialTokenBalance + tokensNeeded,
+            "Sale contract should have received the required tokens"
+        );
+
+        // Invalid case: Insufficient tokens transferred to the sale contract
+        vm.startPrank(owner);
+        tokenMockForSale.burn(tokenMockForSale.balanceOf(owner));
+        tokenMockForSale.mint(tokensNeeded - 1 ether);
+        tokenMockForSale.approve(address(saleFactory), tokensNeeded);
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        saleFactory.deploySale(saleParams);
+        vm.stopPrank();
     }
 
     function testRetrieveETH() public {
