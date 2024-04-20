@@ -49,6 +49,25 @@ contract SaleFactory is Ownable(msg.sender) {
         return target.code.length > 0;
     }
 
+    function checkContract(address _targetT, bool allowZeroAddr) internal returns (bool) {
+        return (allowZeroAddr ? true : _targetT != address(0))
+            && (allowZeroAddr ? address(0) == _targetT : isContract(_targetT));
+    }
+
+    function _checkSaleConfig(CommonStructures.SaleConfig memory saleConfigNew) internal {
+        require(checkContract(saleConfigNew.token, false), "Token not set");
+        require(checkContract(saleConfigNew.fundingToken, true), "invalid funding token");
+        require(
+            saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
+            "Sale maxbuy is higher than valid range"
+        );
+        require(saleConfigNew.creator != address(0), "Sale creator is empty");
+        require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
+        require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
+        require(checkContract(saleConfigNew.router, false), "Sale target router is empty");
+        require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+    }
+
     function setBaseSale(address _newBaseSale) external onlyOwner {
         baseSale = _newBaseSale;
         emit BaseSaleUpdated(_newBaseSale);
@@ -76,19 +95,7 @@ contract SaleFactory is Ownable(msg.sender) {
 
     function deploySale(CommonStructures.SaleConfig memory saleConfigNew) external returns (address payable newSale) {
         require(baseSale != address(0), "Base sale contract not set");
-        require(saleConfigNew.token != address(0) && isContract(saleConfigNew.token), "Token not set");
-        require(
-            saleConfigNew.fundingToken == address(0) || isContract(saleConfigNew.fundingToken), "invalid funding token"
-        );
-        require(
-            saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
-            "Sale maxbuy is higher than valid range"
-        );
-        require(saleConfigNew.creator != address(0), "Sale creator is empty");
-        require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
-        require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
-        require(saleConfigNew.router != address(0) && isContract(saleConfigNew.router), "Sale target router is empty");
-        require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+        _checkSaleConfig(saleConfigNew);
         IERC20 targetToken = IERC20(saleConfigNew.token);
         bytes20 addressBytes = bytes20(baseSale);
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
