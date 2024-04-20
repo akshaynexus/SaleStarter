@@ -367,6 +367,20 @@ contract SaleFactoryTestV2 is Test {
         saleFactory.deploySale(invalidSaleParams);
     }
 
+    function testDeployInvalidPricing() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.salePrice = 0;
+
+        vm.expectRevert("Sale Price is <=0");
+        saleFactory.deploySale(invalidSaleParams);
+
+        invalidSaleParams = saleParams;
+        invalidSaleParams.listingPrice = 0;
+
+        vm.expectRevert("Listing Price is <=0");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
     function testDeployInvalidToken() public {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.token = address(0x123);

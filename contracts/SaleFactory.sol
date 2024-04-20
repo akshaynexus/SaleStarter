@@ -61,11 +61,15 @@ contract SaleFactory is Ownable(msg.sender) {
             saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
             "Sale maxbuy is higher than valid range"
         );
-        require(saleConfigNew.creator != address(0), "Sale creator is empty");
         require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
+        require(saleConfigNew.salePrice > 0, "Sale Price is <=0");
+        require(saleConfigNew.listingPrice > 0, "Listing Price is <=0");
         require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
+        require(saleConfigNew.lpUnlockTime >= 0, "LP unlock time is invalid");
         require(checkContract(saleConfigNew.router, false), "Sale target router is empty");
+        require(saleConfigNew.creator != address(0), "Sale creator is empty");
         require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+        require(saleConfigNew.teamShare >= 0, "Invalid teamshare amount");
     }
 
     function setBaseSale(address _newBaseSale) external onlyOwner {
