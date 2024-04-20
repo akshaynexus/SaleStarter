@@ -27,7 +27,6 @@ interface IWETH is IERC20 {
 
 contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using SafeERC20 for IERC20D;
-    // using SafeERC20 for IERC20;
 
     using Address for address;
     using Address for address payable;
