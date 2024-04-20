@@ -1,7 +1,7 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./interfaces/IUniswapV2Router02.sol";
@@ -27,6 +27,8 @@ interface IWETH is IERC20 {
 
 contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using SafeERC20 for IERC20D;
+    // using SafeERC20 for IERC20;
+
     using Address for address;
     using Address for address payable;
 
@@ -402,7 +404,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
 
-        token.safeApprove(address(router), type(uint256).max);
+        token.forceApprove(address(router), type(uint256).max);
         _addLiquidity(FundingBudget);
         _handleExcess();
 
