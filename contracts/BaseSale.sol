@@ -334,6 +334,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             weth.approve(saleConfig.router, fundingAmount);
         }
         if (!saleConfig.isV3) {
+            token.forceApprove(saleConfig.router, type(uint256).max);
             //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
             router.addLiquidity(
                 fETH ? address(weth) : address(fundingToken),
@@ -393,7 +394,6 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
 
-        token.forceApprove(saleConfig.router, type(uint256).max);
         _addLiquidity(FundingBudget);
         _handleExcess();
 
