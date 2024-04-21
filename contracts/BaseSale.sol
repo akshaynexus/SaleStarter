@@ -34,6 +34,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     uint256 immutable DIVISOR = 10000;
     int24 immutable MIN_TICK = -887_100;
     int24 immutable MAX_TICK = -MIN_TICK;
+    uint24 immutable feeTierV3 = 3000;
     //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
     //Used to track the progress and status of the sale
@@ -156,14 +157,17 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             return (factory.createPair(baseToken, saleToken), baseToken, saleToken);
         } else {
             IUniswapV3Factory factory = IUniswapV3Factory(INonfungiblePositionManager(saleConfig.router).factory());
-            address curPair = factory.getPool(baseToken, saleToken, 3000);
+            address curPair = factory.getPool(baseToken, saleToken, feeTierV3);
             if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
-
             //Create new pool
-            (address token0, address token1, uint160 initprice) = UniswapV3PricingHelper.getInitPrice(
-                address(baseToken), address(saleToken), saleConfig.hardCap, getRequiredAllocationOfTokens()
+            (address token0, address token1, uint160 initprice) = 
+            UniswapV3PricingHelper.getInitPrice(
+                address(baseToken),
+                address(saleToken),
+                saleConfig.hardCap,
+                getRequiredAllocationOfTokens()
             );
-            curPair = factory.createPool(token0, token1, 3000);
+            curPair = factory.createPool(token0, token1, feeTierV3);
             IUniswapV3Pool(curPair).initialize(initprice);
             return (address(saleConfig.router), token0, token1);
         }
@@ -368,7 +372,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: token0,
             token1: token1,
-            fee: 3000,
+            fee: feeTierV3,
             tickLower: MIN_TICK,
             tickUpper: MAX_TICK,
             amount0Desired: token0amount,
