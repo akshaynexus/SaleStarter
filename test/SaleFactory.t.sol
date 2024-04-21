@@ -331,7 +331,7 @@ contract SaleFactoryTestV2 is Test {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.startTime = block.timestamp - 1;
 
-        vm.expectRevert("Sale start time is before current time");
+        vm.expectRevert("Invalid sale start time");
         saleFactory.deploySale(invalidSaleParams);
     }
 
@@ -355,7 +355,7 @@ contract SaleFactoryTestV2 is Test {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.maxBuy = type(uint256).max;
 
-        vm.expectRevert("Sale maxbuy is higher than valid range");
+        vm.expectRevert("invalid maxBuy value");
         saleFactory.deploySale(invalidSaleParams);
     }
 
@@ -363,7 +363,7 @@ contract SaleFactoryTestV2 is Test {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.fundingToken = address(0x123);
 
-        vm.expectRevert("invalid funding token");
+        vm.expectRevert("Invalid funding token");
         saleFactory.deploySale(invalidSaleParams);
     }
 

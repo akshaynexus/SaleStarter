@@ -45,26 +45,23 @@ contract SaleFactory is Ownable(msg.sender) {
     }
 
     //implement iscontract since openzeppelin removed it in recent verisons
-    function isContract(address target) internal returns (bool) {
+    function isContract(address target) internal view returns (bool) {
         return target.code.length > 0;
     }
 
-    function checkContract(address _targetT, bool allowZeroAddr) internal returns (bool) {
+    function checkContract(address _targetT, bool allowZeroAddr) internal view returns (bool) {
         return (allowZeroAddr ? true : _targetT != address(0))
             && (allowZeroAddr ? address(0) == _targetT : isContract(_targetT));
     }
 
-    function _checkSaleConfig(CommonStructures.SaleConfig memory saleConfigNew) internal {
+    function _checkSaleConfig(CommonStructures.SaleConfig memory saleConfigNew) internal view {
         require(checkContract(saleConfigNew.token, false), "Token not set");
-        require(checkContract(saleConfigNew.fundingToken, true), "invalid funding token");
-        require(
-            saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
-            "Sale maxbuy is higher than valid range"
-        );
+        require(checkContract(saleConfigNew.fundingToken, true), "Invalid funding token");
+        require(saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,"invalid maxBuy value");
         require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
         require(saleConfigNew.salePrice > 0, "Sale Price is <=0");
         require(saleConfigNew.listingPrice > 0, "Listing Price is <=0");
-        require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
+        require(saleConfigNew.startTime >= block.timestamp, "Invalid sale start time");
         require(saleConfigNew.lpUnlockTime >= 0, "LP unlock time is invalid");
         require(checkContract(saleConfigNew.router, false), "Sale target router is empty");
         require(saleConfigNew.creator != address(0), "Sale creator is empty");
