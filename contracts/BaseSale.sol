@@ -32,9 +32,11 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using Address for address payable;
 
     uint256 immutable DIVISOR = 10000;
+
+    uint24 immutable feeTierV3 = 3000;
     int24 immutable MIN_TICK = -887_100;
     int24 immutable MAX_TICK = -MIN_TICK;
-    uint24 immutable feeTierV3 = 3000;
+
     //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
     //Used to track the progress and status of the sale
@@ -200,7 +202,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         if (!isETHSale()) {
             fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
         } else {
-            require(_amount == msg.value, "!val");
+            require(_amount == msg.value, "Invalid value");
         }
         _handlePurchase(msg.sender, _amount);
     }

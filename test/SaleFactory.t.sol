@@ -582,4 +582,70 @@ contract SaleFactoryTestV2 is Test {
         vm.expectRevert("Sale already finalized");
         _finalizeSale();
     }
+
+    function testInvalidContributeValue() public {
+        _forceStartSale();
+        vm.expectRevert("Invalid value");
+        vm.prank(buyerWallets[1]);
+        mockSale.contribute{value: 0}(1);
+    }
+
+    function testDeployZeroAddressToken() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.token = address(0);
+
+        vm.expectRevert("Token not set");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testRetrieveTokensWithNoBalance() public {
+        uint256 initialBalance = mistakeToken.balanceOf(owner);
+        vm.prank(owner);
+        saleFactory.retriveToken(address(mistakeToken));
+        assertEq(mistakeToken.balanceOf(owner), initialBalance, "Token balance should remain unchanged");
+    }
+
+    function testDeployValidSale() public {
+        vm.startPrank(owner);
+        tokenMockForSale.mint(mockSale.getRequiredAllocationOfTokens());
+        tokenMockForSale.approve(address(saleFactory), mockSale.getRequiredAllocationOfTokens());
+        address payable newSale = saleFactory.deploySale(saleParams);
+        vm.stopPrank();
+
+        assertEq(saleFactory.getAllSales().length, 2, "New sale should be added to the salesDeployed array");
+        assertEq(
+            tokenMockForSale.balanceOf(newSale),
+            mockSale.getRequiredAllocationOfTokens(),
+            "New sale should have the required token allocation"
+        );
+    }
+
+    function testDeployWithoutBaseSale() public {
+        vm.prank(owner);
+        saleFactory.setBaseSale(address(0));
+
+        vm.expectRevert("Base sale contract not set");
+        saleFactory.deploySale(saleParams);
+    }
+
+    function testRetrieveETHWithNoBalance() public {
+        uint256 initialBalance = address(owner).balance;
+        vm.prank(owner);
+        saleFactory.retriveETH();
+        assertEq(address(owner).balance, initialBalance, "ETH balance should remain unchanged");
+    }
+
+    function testToggleGasLimitAndCheckTxPrice() public {
+        vm.prank(owner);
+        saleFactory.toggleLimit();
+        assertTrue(saleFactory.limitGas(), "Gas limit should be enabled");
+
+        uint256 txGasPrice = 5 gwei;
+        assertTrue(saleFactory.checkTxPrice(txGasPrice), "Transaction price should be allowed when within the limit");
+
+        txGasPrice = 15 gwei;
+        assertFalse(
+            saleFactory.checkTxPrice(txGasPrice), "Transaction price should not be allowed when exceeding the limit"
+        );
+    }
 }
