@@ -3,11 +3,6 @@ pragma solidity ^0.8.3;
 pragma experimental ABIEncoderV2;
 
 library CommonStructures {
-    // enum SaleTypes {
-    //     PRESALE,
-    //     DUTCH_AUCTION
-    // }
-
     struct SaleConfig {
         //The token being sold
         address token;
@@ -24,12 +19,14 @@ library CommonStructures {
         uint256 lpUnlockTime;
         //This contains the sale data from backend url
         string detailsJSON;
-        //The router which we add liq to
+        //The router which we add liq to,set the positionmanager address here incase its a v3 pool
         address router;
         //Maker of the sale
         address creator;
         //Share of eth / tokens that goes to the team
         uint256 teamShare;
+        //Set this to true on uniswap v3 sales
+        bool isV3;
     }
 
     struct SaleInfo {

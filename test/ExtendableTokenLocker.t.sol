@@ -22,7 +22,7 @@ contract ExtendableTokenLockerTest is Test {
         token = new BurnableToken("TestToken", "TSX");
         spamToken = new BurnableToken("SpamToken", "SPAM");
         uint256 secondsSinceEpoch = block.timestamp;
-        locker = new ExtendableTokenLocker(IERC20(token), owner, secondsSinceEpoch + 2000);
+        locker = new ExtendableTokenLocker(address(token), owner, secondsSinceEpoch + 2000, false);
         vm.stopPrank();
     }
 

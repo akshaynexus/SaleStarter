@@ -1,14 +1,20 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
 
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Factory.sol";
+
+import "./interfaces/INonfungiblePositionManager.sol";
+import "./interfaces/IUniswapV3Factory.sol";
+import "./interfaces/IUniswapV3Pool.sol";
+
 import "./interfaces/ISaleFactory.sol";
 import "./interfaces/IBaseSale.sol";
 
+import "./libraries/UniswapV3PricingHelper.sol";
 import "./ExtendableTokenLocker.sol";
 
 interface IERC20D is IERC20 {
@@ -21,11 +27,13 @@ interface IWETH is IERC20 {
 
 contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using SafeERC20 for IERC20D;
+
     using Address for address;
     using Address for address payable;
 
-    uint256 constant DIVISOR = 10000;
-
+    uint256 immutable DIVISOR = 10000;
+    int24 immutable MIN_TICK = -887_100;
+    int24 immutable MAX_TICK = -MIN_TICK;
     //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
     //Used to track the progress and status of the sale
@@ -52,11 +60,6 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     event FactoryFeeSent(uint256 amount);
     event SentToken(address token, uint256 amount);
     event Finalized();
-
-    modifier onlySaleCreator() {
-        require(msg.sender == saleConfig.creator, "Caller is not sale creator");
-        _;
-    }
 
     modifier onlySaleCreatororFactoryOwner() {
         require(
@@ -142,37 +145,46 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     }
 
     //This creates and returns the pair for the sale if it doesnt exist
-    function createPair(address baseToken, address saleToken) internal returns (IERC20D) {
-        IUniswapV2Factory factory = IUniswapV2Factory(router.factory());
-        address curPair = factory.getPair(baseToken, saleToken);
-        if (curPair != address(0)) return IERC20D(curPair);
-        return IERC20D(factory.createPair(baseToken, saleToken));
+    function createPair(address baseToken, address saleToken, bool useV3)
+        internal
+        returns (address, address, address)
+    {
+        if (!useV3) {
+            IUniswapV2Factory factory = IUniswapV2Factory(router.factory());
+            address curPair = factory.getPair(baseToken, saleToken);
+            if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
+            return (factory.createPair(baseToken, saleToken), baseToken, saleToken);
+        } else {
+            IUniswapV3Factory factory = IUniswapV3Factory(INonfungiblePositionManager(saleConfig.router).factory());
+            address curPair = factory.getPool(baseToken, saleToken, 3000);
+            if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
+
+            //Create new pool
+            (address token0, address token1, uint160 initprice) = UniswapV3PricingHelper.getInitPrice(
+                address(baseToken), address(saleToken), saleConfig.hardCap, getRequiredAllocationOfTokens()
+            );
+            curPair = factory.createPool(token0, token1, 3000);
+            IUniswapV3Pool(curPair).initialize(initprice);
+            return (address(saleConfig.router), token0, token1);
+        }
     }
 
     //This is the initializer so that minimal proxy clones can be initialized once
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew) public {
         require(!saleInfo.initialized, "Already initialized");
         saleConfig = saleConfigNew;
-        router = IUniswapV2Router02(saleConfig.router);
         token = IERC20D(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
         if (saleConfig.fundingToken != address(0)) fundingToken = IERC20D(saleConfig.fundingToken);
-        weth = IWETH(router.WETH());
-        if (saleConfig.lpUnlockTime > 0) {
-            lpLocker = new ExtendableTokenLocker(
-                createPair(
-                    address(fundingToken) == address(0) ? address(weth) : address(saleConfig.fundingToken),
-                    address(token)
-                ),
-                saleConfig.creator,
-                saleConfig.lpUnlockTime
-            );
+        if (!saleConfig.isV3) {
+            router = IUniswapV2Router02(saleConfig.router);
         }
+        weth = IWETH(saleConfig.isV3 ? INonfungiblePositionManager(saleConfig.router).WETH9() : router.WETH());
         saleInfo.initialized = true;
     }
 
     receive() external payable {
-        if (msg.sender != address(router)) {
+        if (msg.sender != address(saleConfig.router)) {
             contribute(msg.value);
         }
     }
@@ -184,14 +196,14 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         if (!isETHSale()) {
             fundingToken.safeTransferFrom(msg.sender, address(this), _amount);
         } else {
-           require( _amount == msg.value,"!val");
+            require(_amount == msg.value, "!val");
         }
         _handlePurchase(msg.sender, _amount);
     }
 
     //For frontend data to see how much a user can add to a sale
     function getMaxContribForUser(address user) public view returns (uint256) {
-        return calculateLimitForUser(userData[user].contributedAmount,0);
+        return calculateLimitForUser(userData[user].contributedAmount, 0);
     }
 
     function calculateLimitForUser(uint256 contributedAmount, uint256 value) public view returns (uint256 limit) {
@@ -306,23 +318,69 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
     //This function takes care of adding liq to the specified base pair
     function addLiquidity(uint256 fundingAmount, uint256 tokenAmount, bool fETH) internal {
+        //Create pair before add liq
+        (address targetLPToken, address token0, address token1) = createPair(
+            address(fundingToken) == address(0) ? address(weth) : address(saleConfig.fundingToken),
+            address(token),
+            saleConfig.isV3
+        );
+        if (saleConfig.lpUnlockTime > 0) {
+            lpLocker =
+                new ExtendableTokenLocker(targetLPToken, saleConfig.creator, saleConfig.lpUnlockTime, saleConfig.isV3);
+        }
         //If this is ETH,deposit in WETH from contract
         if (fETH) {
             weth.deposit{value: fundingAmount}();
-            weth.approve(address(router), fundingAmount);
+            weth.approve(saleConfig.router, fundingAmount);
         }
+        if (!saleConfig.isV3) {
+            //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
+            router.addLiquidity(
+                fETH ? address(weth) : address(fundingToken),
+                address(token),
+                fundingAmount,
+                tokenAmount,
+                fundingAmount,
+                tokenAmount,
+                address(lpLocker) != address(0) ? address(lpLocker) : saleConfig.creator,
+                block.timestamp
+            );
+        } else {
+            (uint256 tokenId,,,) = mintNewPosition(
+                token0,
+                token1,
+                token0 == address(fundingToken) ? fundingAmount : tokenAmount,
+                token1 == address(token) ? tokenAmount : fundingAmount,
+                address(lpLocker) != address(0) ? address(lpLocker) : saleConfig.creator
+            );
+            if (address(lpLocker) != address(0)) lpLocker.setTokenId(tokenId);
+        }
+    }
 
-        //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
-        router.addLiquidity(
-            fETH ? address(weth) : address(fundingToken),
-            address(token),
-            fundingAmount,
-            tokenAmount,
-            fundingAmount,
-            tokenAmount,
-            address(lpLocker) != address(0) ? address(lpLocker) : saleConfig.creator,
-            block.timestamp
-        );
+    function mintNewPosition(address token0, address token1, uint256 token0amount, uint256 token1amount, address to)
+        internal
+        returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
+    {
+        IERC20D(token0).forceApprove(saleConfig.router, type(uint256).max);
+        IERC20D(token1).forceApprove(saleConfig.router, type(uint256).max);
+
+        INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
+            token0: token0,
+            token1: token1,
+            fee: 3000,
+            tickLower: MIN_TICK,
+            tickUpper: MAX_TICK,
+            amount0Desired: token0amount,
+            amount1Desired: token1amount,
+            amount0Min: 0,
+            amount1Min: 0,
+            recipient: to,
+            deadline: block.timestamp + 100
+        });
+
+        (tokenId, liquidity, amount0, amount1) = INonfungiblePositionManager(saleConfig.router).mint(params);
+        require(liquidity > 0, "liquidity is 0");
+        require(tokenId != 0, "null tokenid");
     }
 
     // This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
@@ -335,7 +393,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
 
-        token.safeApprove(address(router), type(uint256).max);
+        token.forceApprove(saleConfig.router, type(uint256).max);
         _addLiquidity(FundingBudget);
         _handleExcess();
 

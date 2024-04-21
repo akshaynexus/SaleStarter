@@ -1,41 +1,63 @@
-name: test
+name: Continuous Integration
 
-on: workflow_dispatch
+on:
+  push
 
 env:
   FOUNDRY_PROFILE: ci
 
 jobs:
-  check:
-    strategy:
-      fail-fast: true
-
-    name: Foundry project
+  build-and-test:
+    name: Build and Test
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v3
         with:
           submodules: recursive
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libusb-1.0-0-dev libudev-dev build-essential
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
 
-      - name: Install bun
+      - name: Install Bun
         uses: oven-sh/setup-bun@v1
 
-
-      - name: Install dependencies
+      - name: Install project dependencies
         run: bun install
 
-      - name: Run Forge build
+      - name: Build smart contracts
         run: |
+          echo "Building smart contracts..."
           forge --version
           forge build --sizes
         id: build
 
-      - name: Run Forge tests
+      - name: Run tests
         run: |
+          echo "Running tests..."
           forge test -vvv
         id: test
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: build-artifacts
+          path: |
+            out/
+            forge-artifacts/
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: test-results
+          path: forge-artifacts/test-results.log

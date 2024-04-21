@@ -4,9 +4,7 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/SaleData.sol";
 import "../contracts/SaleFactory.sol";
-import "../contracts/BaseSale.sol";
 import "../contracts/mock/BurnableToken.sol";
-import "../contracts/interfaces/ISaleFactory.sol";
 
 contract SaleDataTest is Test {
     SaleData public saleData;
@@ -44,7 +42,8 @@ contract SaleDataTest is Test {
             detailsJSON: "",
             router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
             creator: owner,
-            teamShare: 0
+            teamShare: 0,
+            isV3: false
         });
 
         tokenMock.approve(address(saleFactory), 100000 ether);

@@ -4,10 +4,9 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/SaleFactory.sol";
 import "../contracts/SaleData.sol";
-import "../contracts/BaseSale.sol";
 import "../contracts/mock/BurnableToken.sol";
 
-contract SaleFactoryTest is Test {
+contract SaleFactoryTestV2 is Test {
     SaleFactory public saleFactory;
     SaleData public saleData;
     BaseSale public mockSale;
@@ -23,7 +22,7 @@ contract SaleFactoryTest is Test {
     uint256 constant DIVISOR = 10000;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 19456789);
+        vm.createSelectFork("mainnet", 19702169);
         buyerWallets = new address[](11);
         for (uint256 i = 0; i < 11; i++) {
             buyerWallets[i] = address(uint160(i + 1));
@@ -54,9 +53,10 @@ contract SaleFactoryTest is Test {
             startTime: block.timestamp,
             lpUnlockTime: 0,
             detailsJSON: "",
-            router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
+            router: 0xC36442b4a4522E871399CD717aBDD847Ab11FE88,
             creator: owner,
-            teamShare: (20 * 100)
+            teamShare: (20 * 100),
+            isV3: true
         });
 
         address payable mockSaleAddress = saleFactory.deploySale(saleParams);
@@ -79,6 +79,10 @@ contract SaleFactoryTest is Test {
         mockSale.forceStartSale();
     }
 
+    function _enableRefund() internal asOwner {
+        mockSale.enableRefunds();
+    }
+
     function contributeToBuy(address buyer, uint256 amount) internal {
         vm.deal(buyer, 0);
         vm.deal(buyer, amount);
@@ -91,7 +95,7 @@ contract SaleFactoryTest is Test {
     function _fillTheSale() internal {
         uint256 ethRequired = mockSale.getRemainingContribution();
 
-        for (uint256 i = 5; ethRequired >= 0; i++) {
+        for (uint256 i = 1; ethRequired >= 0; i++) {
             uint256 amountToBuy = mockSale.calculateLimitForUser(address(mockSale).balance, 100 ether);
             if (amountToBuy == 0) return;
             contributeToBuy(buyerWallets[i], amountToBuy);
@@ -100,9 +104,6 @@ contract SaleFactoryTest is Test {
     }
 
     function testEnoughAllocationPerEth() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
         _fillTheSale();
 
         assertEq(mockSale.calculateTokensClaimable(1 ether), 5 ether, "Allocation per ETH should be correct");
@@ -178,41 +179,28 @@ contract SaleFactoryTest is Test {
 
     // Test deploying a sale with invalid parameters
     function testDeployInvalidSale() public {
-        CommonStructures.SaleConfig memory invalidSaleParams = CommonStructures.SaleConfig({
-            token: address(tokenMockForSale),
-            fundingToken: address(0),
-            maxBuy: 1 ether,
-            softCap: 5 ether, // Invalid: softCap greater than hardCap
-            hardCap: 4 ether,
-            salePrice: pricePerETHBuy,
-            listingPrice: priceListing,
-            startTime: block.timestamp + 6000,
-            lpUnlockTime: 0,
-            detailsJSON: "",
-            router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
-            creator: owner,
-            teamShare: (20 * 100)
-        });
-
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.softCap = 5 ether; // Invalid: softCap greater than hardCap
         vm.expectRevert("Sale hardcap is lesser than softcap");
         saleFactory.deploySale(invalidSaleParams);
     }
 
     // Test deploying a sale with a token that doesn't have enough allowance
+    // Test deploying a sale with a token that doesn't have enough allowance
+    // Test deploying a sale with a token that doesn't have enough allowance
     function testDeployInsufficientAllowance() public {
         vm.startPrank(owner);
         tokenMockForSale.approve(address(saleFactory), 0);
 
-        vm.expectRevert("ERC20: insufficient allowance");
+        // Expect the transaction to revert with any error
+        vm.expectRevert();
+
         saleFactory.deploySale(saleParams);
         vm.stopPrank();
     }
 
     // Test finalizing a sale and ensure the team share is sent to the creator
     function testFinalizeTeamShare() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
         _fillTheSale();
 
         uint256 creatorBalanceBefore = address(owner).balance;
@@ -226,10 +214,6 @@ contract SaleFactoryTest is Test {
 
     // Test finalizing a sale and ensure the factory fee is sent to the factory contract
     function testFinalizeFactoryFee() public {
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
-
         uint256 factoryBalanceBefore = address(saleFactory).balance;
         _fillTheSale();
         _finalizeSale();
@@ -251,10 +235,6 @@ contract SaleFactoryTest is Test {
         tokenMockForSale.transfer(address(mockSale), excessTokens);
         assertEq(tokenMockForSale.balanceOf(owner), 0, "we have more than 0");
 
-        for (uint256 i = 1; i < 5; i++) {
-            contributeToBuy(buyerWallets[i], 1 ether);
-        }
-
         _fillTheSale();
         // uint256 excessReal = tokenMockForSale.balanceOf(address(mockSale)) - mockSale.getRequiredAllocationOfTokens();
         uint256 creatorBalanceBefore = tokenMockForSale.balanceOf(owner);
@@ -272,8 +252,7 @@ contract SaleFactoryTest is Test {
         vm.expectRevert("Caller is not sale creator or factory allowed");
         mockSale.forceStartSale();
 
-        vm.prank(owner);
-        mockSale.forceStartSale();
+        _forceStartSale();
         assertTrue(mockSale.saleStarted(), "Sale should be force started by the creator");
 
         vm.prank(saleFactory.owner());
@@ -287,8 +266,7 @@ contract SaleFactoryTest is Test {
         vm.expectRevert("Caller is not sale creator or factory allowed");
         mockSale.enableRefunds();
 
-        vm.prank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         assertTrue(mockSale.shouldRefund(), "Refunds should be enabled by the creator");
 
         vm.prank(saleFactory.owner());
@@ -336,7 +314,7 @@ contract SaleFactoryTest is Test {
         vm.startPrank(owner);
         tokenMockForSale.burn(tokenMockForSale.balanceOf(owner));
 
-        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        vm.expectRevert();
         saleFactory.deploySale(saleParams);
         vm.stopPrank();
     }
@@ -353,7 +331,7 @@ contract SaleFactoryTest is Test {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.startTime = block.timestamp - 1;
 
-        vm.expectRevert("Sale start time is before current time");
+        vm.expectRevert("Invalid sale start time");
         saleFactory.deploySale(invalidSaleParams);
     }
 
@@ -365,11 +343,19 @@ contract SaleFactoryTest is Test {
         saleFactory.deploySale(invalidSaleParams);
     }
 
+    function testDeployInvalidCreatorNotCaller() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.creator = address(1);
+
+        vm.expectRevert("Creator doesnt match the caller");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
     function testDeployInvalidMaxBuy() public {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.maxBuy = type(uint256).max;
 
-        vm.expectRevert("Sale maxbuy is higher than valid range");
+        vm.expectRevert("invalid maxBuy value");
         saleFactory.deploySale(invalidSaleParams);
     }
 
@@ -377,8 +363,58 @@ contract SaleFactoryTest is Test {
         CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
         invalidSaleParams.fundingToken = address(0x123);
 
-        vm.expectRevert("invalid funding token");
+        vm.expectRevert("Invalid funding token");
         saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testDeployInvalidPricing() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.salePrice = 0;
+
+        vm.expectRevert("Sale Price is <=0");
+        saleFactory.deploySale(invalidSaleParams);
+
+        invalidSaleParams = saleParams;
+        invalidSaleParams.listingPrice = 0;
+
+        vm.expectRevert("Listing Price is <=0");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testDeployInvalidToken() public {
+        CommonStructures.SaleConfig memory invalidSaleParams = saleParams;
+        invalidSaleParams.token = address(0x123);
+
+        vm.expectRevert("Token not set");
+        saleFactory.deploySale(invalidSaleParams);
+    }
+
+    function testDeployTokenTransfer() public {
+        uint256 tokensNeeded = mockSale.getRequiredAllocationOfTokens();
+        uint256 initialTokenBalance = 0;
+
+        // Valid case: Sufficient tokens transferred to the sale contract
+        vm.startPrank(owner);
+        tokenMockForSale.mint(tokensNeeded);
+        tokenMockForSale.approve(address(saleFactory), tokensNeeded);
+        address payable newSale = saleFactory.deploySale(saleParams);
+        vm.stopPrank();
+
+        assertEq(
+            tokenMockForSale.balanceOf(newSale),
+            initialTokenBalance + tokensNeeded,
+            "Sale contract should have received the required tokens"
+        );
+
+        // Invalid case: Insufficient tokens transferred to the sale contract
+        vm.startPrank(owner);
+        tokenMockForSale.burn(tokenMockForSale.balanceOf(owner));
+        tokenMockForSale.mint(tokensNeeded - 1 ether);
+        tokenMockForSale.approve(address(saleFactory), tokensNeeded);
+
+        vm.expectRevert();
+        saleFactory.deploySale(saleParams);
+        vm.stopPrank();
     }
 
     function testRetrieveETH() public {
@@ -505,8 +541,7 @@ contract SaleFactoryTest is Test {
     }
 
     function testbuyTokensWhenRefundsEnabled() public {
-        vm.startPrank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         vm.expectRevert("Not started yet");
         contributeToBuy(buyerWallets[0], 1 ether);
     }
@@ -520,8 +555,7 @@ contract SaleFactoryTest is Test {
 
     function testClaimTokensWhenRefundsEnabled() public {
         contributeToBuy(buyerWallets[1], 1 ether);
-        vm.prank(owner);
-        mockSale.enableRefunds();
+        _enableRefund();
         vm.expectRevert("Refunds enabled");
         vm.prank(buyerWallets[1]);
         mockSale.claimTokens();
@@ -544,6 +578,7 @@ contract SaleFactoryTest is Test {
         _forceStartSale();
         _fillTheSale();
         _finalizeSale();
+        //Try to finalize again but it will revert cause already finalized
         vm.expectRevert("Sale already finalized");
         _finalizeSale();
     }

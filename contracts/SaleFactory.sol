@@ -4,7 +4,7 @@ pragma solidity ^0.8.3;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./BaseSale.sol";
 
-contract SaleFactory is Ownable {
+contract SaleFactory is Ownable(msg.sender) {
     using Address for address payable;
     using Address for address;
     using SafeERC20 for IERC20;
@@ -44,6 +44,31 @@ contract SaleFactory is Ownable {
         limitGas = false;
     }
 
+    //implement iscontract since openzeppelin removed it in recent verisons
+    function isContract(address target) internal view returns (bool) {
+        return target.code.length > 0;
+    }
+
+    function checkContract(address _targetT, bool allowZeroAddr) internal view returns (bool) {
+        return (allowZeroAddr ? true : _targetT != address(0))
+            && (allowZeroAddr ? address(0) == _targetT : isContract(_targetT));
+    }
+
+    function _checkSaleConfig(CommonStructures.SaleConfig memory saleConfigNew) internal view {
+        require(checkContract(saleConfigNew.token, false), "Token not set");
+        require(checkContract(saleConfigNew.fundingToken, true), "Invalid funding token");
+        require(saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max, "invalid maxBuy value");
+        require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
+        require(saleConfigNew.salePrice > 0, "Sale Price is <=0");
+        require(saleConfigNew.listingPrice > 0, "Listing Price is <=0");
+        require(saleConfigNew.startTime >= block.timestamp, "Invalid sale start time");
+        require(saleConfigNew.lpUnlockTime >= 0, "LP unlock time is invalid");
+        require(checkContract(saleConfigNew.router, false), "Sale target router is empty");
+        require(saleConfigNew.creator != address(0), "Sale creator is empty");
+        require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+        require(saleConfigNew.teamShare >= 0, "Invalid teamshare amount");
+    }
+
     function setBaseSale(address _newBaseSale) external onlyOwner {
         baseSale = _newBaseSale;
         emit BaseSaleUpdated(_newBaseSale);
@@ -71,19 +96,7 @@ contract SaleFactory is Ownable {
 
     function deploySale(CommonStructures.SaleConfig memory saleConfigNew) external returns (address payable newSale) {
         require(baseSale != address(0), "Base sale contract not set");
-        require(saleConfigNew.token != address(0) && saleConfigNew.token.isContract(), "Token not set");
-        require(
-            saleConfigNew.fundingToken == address(0) || saleConfigNew.fundingToken.isContract(), "invalid funding token"
-        );
-        require(
-            saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,
-            "Sale maxbuy is higher than valid range"
-        );
-        require(saleConfigNew.creator != address(0), "Sale creator is empty");
-        require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
-        require(saleConfigNew.startTime >= block.timestamp, "Sale start time is before current time");
-        require(saleConfigNew.router != address(0) && saleConfigNew.router.isContract(), "Sale target router is empty");
-        require(saleConfigNew.creator == msg.sender, "Creator doesnt match the caller");
+        _checkSaleConfig(saleConfigNew);
         IERC20 targetToken = IERC20(saleConfigNew.token);
         bytes20 addressBytes = bytes20(baseSale);
         // Copied from https://github.com/optionality/clone-factory/blob/master/contracts/CloneFactory.sol
