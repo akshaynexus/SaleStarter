@@ -22,7 +22,7 @@ contract SaleFactoryTestV2 is Test {
     uint256 constant DIVISOR = 10000;
 
     function setUp() public {
-        vm.createSelectFork("mainnet", 19456789);
+        vm.createSelectFork("mainnet", 19702169);
         buyerWallets = new address[](11);
         for (uint256 i = 0; i < 11; i++) {
             buyerWallets[i] = address(uint160(i + 1));
@@ -53,10 +53,10 @@ contract SaleFactoryTestV2 is Test {
             startTime: block.timestamp,
             lpUnlockTime: 0,
             detailsJSON: "",
-            router: 0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D,
+            router: 0xC36442b4a4522E871399CD717aBDD847Ab11FE88,
             creator: owner,
             teamShare: (20 * 100),
-            isV3: false
+            isV3: true
         });
 
         address payable mockSaleAddress = saleFactory.deploySale(saleParams);

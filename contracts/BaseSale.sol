@@ -32,7 +32,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using Address for address payable;
 
     uint256 immutable DIVISOR = 10000;
-    int24 immutable MIN_TICK = -887_200;
+    int24 immutable MIN_TICK = -887_100;
     int24 immutable MAX_TICK = -MIN_TICK;
     //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
@@ -165,7 +165,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             );
             curPair = factory.createPool(token0, token1, 3000);
             IUniswapV3Pool(curPair).initialize(initprice);
-            return (address(router), token0, token1);
+            return (address(saleConfig.router), token0, token1);
         }
     }
 
@@ -173,16 +173,18 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew) public {
         require(!saleInfo.initialized, "Already initialized");
         saleConfig = saleConfigNew;
-        router = IUniswapV2Router02(saleConfig.router);
         token = IERC20D(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
         if (saleConfig.fundingToken != address(0)) fundingToken = IERC20D(saleConfig.fundingToken);
-        weth = IWETH(router.WETH());
+        if (!saleConfig.isV3) {
+            router = IUniswapV2Router02(saleConfig.router);
+        }
+        weth = IWETH(saleConfig.isV3 ? INonfungiblePositionManager(saleConfig.router).WETH9() : router.WETH());
         saleInfo.initialized = true;
     }
 
     receive() external payable {
-        if (msg.sender != address(router)) {
+        if (msg.sender != address(saleConfig.router)) {
             contribute(msg.value);
         }
     }
@@ -329,7 +331,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         //If this is ETH,deposit in WETH from contract
         if (fETH) {
             weth.deposit{value: fundingAmount}();
-            weth.approve(address(router), fundingAmount);
+            weth.approve(saleConfig.router, fundingAmount);
         }
         if (!saleConfig.isV3) {
             //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
@@ -344,13 +346,11 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
                 block.timestamp
             );
         } else {
-            uint256 token0in = token0 == address(fundingToken) ? fundingAmount : tokenAmount;
-            uint256 token1in = token1 == address(token) ? tokenAmount : fundingAmount;
             (uint256 tokenId,,,) = mintNewPosition(
                 token0,
                 token1,
-                token0in,
-                token1in,
+                token0 == address(fundingToken) ? fundingAmount : tokenAmount,
+                token1 == address(token) ? tokenAmount : fundingAmount,
                 address(lpLocker) != address(0) ? address(lpLocker) : saleConfig.creator
             );
             if (address(lpLocker) != address(0)) lpLocker.setTokenId(tokenId);
@@ -361,7 +361,8 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         internal
         returns (uint256 tokenId, uint128 liquidity, uint256 amount0, uint256 amount1)
     {
-        weth.deposit{value: token0 == address(weth) ? token0amount : token1amount}();
+        IERC20D(token0).forceApprove(saleConfig.router, type(uint256).max);
+        IERC20D(token1).forceApprove(saleConfig.router, type(uint256).max);
 
         INonfungiblePositionManager.MintParams memory params = INonfungiblePositionManager.MintParams({
             token0: token0,
@@ -374,23 +375,12 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             amount0Min: 0,
             amount1Min: 0,
             recipient: to,
-            deadline: block.timestamp
+            deadline: block.timestamp + 100
         });
 
         (tokenId, liquidity, amount0, amount1) = INonfungiblePositionManager(saleConfig.router).mint(params);
         require(liquidity > 0, "liquidity is 0");
         require(tokenId != 0, "null tokenid");
-
-        if (amount0 < token0amount) {
-            IERC20(token0).approve(address(router), 0);
-            uint256 refund0 = token0amount - amount0;
-            IERC20(token0).transfer(msg.sender, refund0);
-        }
-        if (amount1 < token1amount) {
-            IERC20(token1).approve(address(router), 0);
-            uint256 refund1 = token1amount - amount1;
-            IERC20(token1).transfer(msg.sender, refund1);
-        }
     }
 
     // This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
@@ -403,7 +393,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         require(FundingBudget <= getFundingBalance(), "not enough in contract");
 
-        token.forceApprove(address(router), type(uint256).max);
+        token.forceApprove(saleConfig.router, type(uint256).max);
         _addLiquidity(FundingBudget);
         _handleExcess();
 

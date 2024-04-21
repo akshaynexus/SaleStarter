@@ -153,4 +153,5 @@ interface INonfungiblePositionManager {
 
     function ownerOf(uint256 id) external view returns (address);
     function factory() external view returns (address);
+    function WETH9() external view returns (address);
 }

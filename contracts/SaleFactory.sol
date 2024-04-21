@@ -57,7 +57,7 @@ contract SaleFactory is Ownable(msg.sender) {
     function _checkSaleConfig(CommonStructures.SaleConfig memory saleConfigNew) internal view {
         require(checkContract(saleConfigNew.token, false), "Token not set");
         require(checkContract(saleConfigNew.fundingToken, true), "Invalid funding token");
-        require(saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max,"invalid maxBuy value");
+        require(saleConfigNew.maxBuy > 0 && saleConfigNew.maxBuy < type(uint256).max, "invalid maxBuy value");
         require(saleConfigNew.hardCap > saleConfigNew.softCap, "Sale hardcap is lesser than softcap");
         require(saleConfigNew.salePrice > 0, "Sale Price is <=0");
         require(saleConfigNew.listingPrice > 0, "Listing Price is <=0");
