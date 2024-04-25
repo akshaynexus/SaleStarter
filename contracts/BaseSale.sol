@@ -27,8 +27,6 @@ interface IWETH is IERC20 {
 
 contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     using SafeERC20 for IERC20D;
-
-    using Address for address;
     using Address for address payable;
 
     uint256 immutable DIVISOR = 10000;
@@ -45,9 +43,6 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     mapping(address => CommonStructures.UserData) public userData;
 
     ISaleFactory internal saleSpawner;
-    address[] internal contributors;
-
-    IUniswapV2Router02 internal router;
 
     IERC20D internal token;
     IERC20D internal fundingToken;
@@ -153,7 +148,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         returns (address, address, address)
     {
         if (!useV3) {
-            IUniswapV2Factory factory = IUniswapV2Factory(router.factory());
+            IUniswapV2Factory factory = IUniswapV2Factory(IUniswapV2Router02(saleConfig.router).factory());
             address curPair = factory.getPair(baseToken, saleToken);
             if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
             return (factory.createPair(baseToken, saleToken), baseToken, saleToken);
@@ -162,12 +157,8 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             address curPair = factory.getPool(baseToken, saleToken, feeTierV3);
             if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
             //Create new pool
-            (address token0, address token1, uint160 initprice) = 
-            UniswapV3PricingHelper.getInitPrice(
-                address(baseToken),
-                address(saleToken),
-                saleConfig.hardCap,
-                getRequiredAllocationOfTokens()
+            (address token0, address token1, uint160 initprice) = UniswapV3PricingHelper.getInitPrice(
+                address(baseToken), address(saleToken), saleConfig.hardCap, getRequiredAllocationOfTokens()
             );
             curPair = factory.createPool(token0, token1, feeTierV3);
             IUniswapV3Pool(curPair).initialize(initprice);
@@ -182,10 +173,11 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         token = IERC20D(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
         if (saleConfig.fundingToken != address(0)) fundingToken = IERC20D(saleConfig.fundingToken);
-        if (!saleConfig.isV3) {
-            router = IUniswapV2Router02(saleConfig.router);
-        }
-        weth = IWETH(saleConfig.isV3 ? INonfungiblePositionManager(saleConfig.router).WETH9() : router.WETH());
+        weth = IWETH(
+            saleConfig.isV3
+                ? INonfungiblePositionManager(saleConfig.router).WETH9()
+                : IUniswapV2Router02(saleConfig.router).WETH()
+        );
         saleInfo.initialized = true;
     }
 
@@ -237,8 +229,6 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(userDataSender.contributedAmount + FundsToContribute <= saleConfig.maxBuy, "Exceeds max buy");
         //Check if it passes hardcap
         require(saleInfo.totalRaised + FundsToContribute <= saleConfig.hardCap, "HardCap will be reached");
-        //If this is a new user add to array of contributors
-        if (userDataSender.contributedAmount == 0) contributors.push(user);
         //Update contributed amount
         userDataSender.contributedAmount += FundsToContribute;
         //Update total raised
@@ -342,7 +332,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         if (!saleConfig.isV3) {
             token.forceApprove(saleConfig.router, type(uint256).max);
             //Then call addliquidity with token0 and weth and token1 as the token,so that we dont rely on addLiquidityETH
-            router.addLiquidity(
+            IUniswapV2Router02(saleConfig.router).addLiquidity(
                 fETH ? address(weth) : address(fundingToken),
                 address(token),
                 fundingAmount,

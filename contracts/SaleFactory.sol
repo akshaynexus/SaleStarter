@@ -6,7 +6,6 @@ import "./BaseSale.sol";
 
 contract SaleFactory is Ownable(msg.sender) {
     using Address for address payable;
-    using Address for address;
     using SafeERC20 for IERC20;
 
     //Percent of ETH as service fee,scaled by 100,2% = 200
