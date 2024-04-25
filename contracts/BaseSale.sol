@@ -1,8 +1,7 @@
 //SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.3;
 
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import "solady/utils/ReentrancyGuard.sol";
 
 import "./interfaces/IUniswapV2Router02.sol";
 import "./interfaces/IUniswapV2Factory.sol";
@@ -65,6 +64,13 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             "Caller is not sale creator or factory allowed"
         );
         _;
+    }
+
+    /**
+     * @dev Returns the smallest of two numbers.
+     */
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
     }
 
     //Primary sale data getters
