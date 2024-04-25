@@ -142,42 +142,59 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         return !userDataSender.tokensClaimed && !userDataSender.refundTaken && userDataSender.contributedAmount > 0;
     }
 
-    //This creates and returns the pair for the sale if it doesnt exist
+    // This function creates and returns the pair for the sale if it doesn't exist
     function createPair(address baseToken, address saleToken, bool useV3)
         internal
         returns (address, address, address)
     {
         if (!useV3) {
             IUniswapV2Factory factory = IUniswapV2Factory(IUniswapV2Router02(saleConfig.router).factory());
-            address curPair = factory.getPair(baseToken, saleToken);
-            if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
-            return (factory.createPair(baseToken, saleToken), baseToken, saleToken);
+            address pairAddress = factory.getPair(baseToken, saleToken);
+
+            if (pairAddress != address(0)) {
+                return (pairAddress, baseToken, saleToken);
+            }
+
+            pairAddress = factory.createPair(baseToken, saleToken);
+            return (pairAddress, baseToken, saleToken);
         } else {
             IUniswapV3Factory factory = IUniswapV3Factory(INonfungiblePositionManager(saleConfig.router).factory());
-            address curPair = factory.getPool(baseToken, saleToken, feeTierV3);
-            if (curPair != address(0)) return (address(curPair), baseToken, saleToken);
-            //Create new pool
-            (address token0, address token1, uint160 initprice) = UniswapV3PricingHelper.getInitPrice(
+            address pairAddress = factory.getPool(baseToken, saleToken, feeTierV3);
+
+            if (pairAddress != address(0)) {
+                return (pairAddress, baseToken, saleToken);
+            }
+
+            // Create new pool
+            (address token0, address token1, uint160 initPrice) = UniswapV3PricingHelper.getInitPrice(
                 address(baseToken), address(saleToken), saleConfig.hardCap, getRequiredAllocationOfTokens()
             );
-            curPair = factory.createPool(token0, token1, feeTierV3);
-            IUniswapV3Pool(curPair).initialize(initprice);
+
+            pairAddress = factory.createPool(token0, token1, feeTierV3);
+            IUniswapV3Pool(pairAddress).initialize(initPrice);
+
             return (address(saleConfig.router), token0, token1);
         }
     }
 
-    //This is the initializer so that minimal proxy clones can be initialized once
+    // This is the initializer function for minimal proxy clones
     function initialize(CommonStructures.SaleConfig calldata saleConfigNew) public {
         require(!saleInfo.initialized, "Already initialized");
+
         saleConfig = saleConfigNew;
         token = IERC20D(saleConfig.token);
         saleSpawner = ISaleFactory(msg.sender);
-        if (saleConfig.fundingToken != address(0)) fundingToken = IERC20D(saleConfig.fundingToken);
-        weth = IWETH(
-            saleConfig.isV3
-                ? INonfungiblePositionManager(saleConfig.router).WETH9()
-                : IUniswapV2Router02(saleConfig.router).WETH()
-        );
+
+        if (saleConfig.fundingToken != address(0)) {
+            fundingToken = IERC20D(saleConfig.fundingToken);
+        }
+
+        if (saleConfig.isV3) {
+            weth = IWETH(INonfungiblePositionManager(saleConfig.router).WETH9());
+        } else {
+            weth = IWETH(IUniswapV2Router02(saleConfig.router).WETH());
+        }
+
         saleInfo.initialized = true;
     }
 
