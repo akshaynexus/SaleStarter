@@ -401,17 +401,10 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
         require(saleInfo.totalRaised > saleConfig.softCap, "Raise amount didnt pass softcap");
         require(!saleInfo.finalized, "Sale already finalized");
-        // require(saleInfo.totalRaised >= saleConfig.hardCap,"Didnt go to hardcap");
-
-        uint256 FundingBudget = _handleFactoryFee(_handleTeamShare(saleInfo.totalRaised));
-
-        require(FundingBudget <= getFundingBalance(), "not enough in contract");
-
-        _addLiquidity(FundingBudget);
+        //The param here is the remaining funding balance after sending the teamshare and factory fee
+        _addLiquidity(_handleFactoryFee(_handleTeamShare(saleInfo.totalRaised)));
         _handleExcess();
-
-        saleInfo.finalized = true;
-        emit Finalized();
+        _markFinalized();
     }
 
     /// @dev Handles the team's share of the raised funds.
@@ -459,5 +452,10 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             token.safeTransfer(saleConfig.creator, remainingTokens - saleInfo.totalTokensToKeep);
             require(token.balanceOf(address(this)) == saleInfo.totalTokensToKeep, "we have more leftover");
         }
+    }
+
+    function _markFinalized() internal {
+        saleInfo.finalized = true;
+        emit Finalized();
     }
 }

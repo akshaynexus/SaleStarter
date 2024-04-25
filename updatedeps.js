@@ -24,7 +24,7 @@ fs.readFile('package.json', 'utf8', (err, data) => {
           latestData += chunk;
         });
         res.on('end', () => {
-          const latestVersion = JSON.parse(latestData).version;
+          const latestVersion = `^${JSON.parse(latestData).version}`;
           // Compare the current version with the latest version
           if (version !== latestVersion) {
             // Update the version in the package.json file
