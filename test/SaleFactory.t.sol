@@ -186,8 +186,6 @@ contract SaleFactoryTestV2 is Test {
     }
 
     // Test deploying a sale with a token that doesn't have enough allowance
-    // Test deploying a sale with a token that doesn't have enough allowance
-    // Test deploying a sale with a token that doesn't have enough allowance
     function testDeployInsufficientAllowance() public {
         vm.startPrank(owner);
         tokenMockForSale.approve(address(saleFactory), 0);

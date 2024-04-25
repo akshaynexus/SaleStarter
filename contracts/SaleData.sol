@@ -51,8 +51,7 @@ contract SaleData {
 
     function getRefundableSales() public view returns (address[] memory salesRefundable) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = getRefundableSalesCount();
-        salesRefundable = new address[](count);
+        salesRefundable = new address[](getRefundableSalesCount());
         uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
@@ -76,8 +75,7 @@ contract SaleData {
 
     function getSalesActive() external view returns (address[] memory activeSales) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = getActiveSalesCount();
-        activeSales = new address[](count);
+        activeSales = new address[](getActiveSalesCount());
         uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
@@ -90,8 +88,7 @@ contract SaleData {
 
     function getSalesUserIsIn(address user) external view returns (address[] memory salesParticipated) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = getParticipatedSalesCount(user);
-        salesParticipated = new address[](count);
+        salesParticipated = new address[](getParticipatedSalesCount(user));
         uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
@@ -104,8 +101,7 @@ contract SaleData {
 
     function getSalesRefundableForUser(address user) external view returns (address[] memory salesRefundable) {
         address[] memory allSales = iSaleFactory.getAllSales();
-        uint256 count = getParticipatedSalesRefundable(user);
-        salesRefundable = new address[](count);
+        salesRefundable = new address[](getParticipatedSalesRefundable(user));
         uint256 index = 0;
         for (uint256 i = 0; i < allSales.length; i++) {
             IBaseSale refSale = IBaseSale(payable(allSales[i]));
