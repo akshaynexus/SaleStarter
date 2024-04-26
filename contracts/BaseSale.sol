@@ -241,7 +241,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(saleSpawner.checkTxPrice(tx.gasprice), "Above gas price limit");
 
         CommonStructures.UserData storage userDataSender = userData[user];
-    
+
         uint256 FundsToContribute = calculateLimitForUser(userDataSender.contributedAmount, value);
         if (FundsToContribute == 0) {
             //If there is no balance possible just refund it all
@@ -249,7 +249,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             emit ExcessRefunded(user, value);
             return;
         }
-    
+
         //Check if it surpases max buy
         require(userDataSender.contributedAmount + FundsToContribute <= saleConfig.maxBuy, "Exceeds max buy");
         //Check if it passes hardcap
@@ -278,7 +278,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         else fundingToken.safeTransfer(user, value);
     }
 
-    function getRefund() external  {
+    function getRefund() external {
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
 
         require(shouldRefund(), "Refunds not enabled or doesnt pass config");
@@ -286,7 +286,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
 
-        uint refundAmt = userDataSender.contributedAmount;
+        uint256 refundAmt = userDataSender.contributedAmount;
 
         saleInfo.totalRaised -= refundAmt;
         saleInfo.totalTokensToKeep -= saleInfo.totalTokensToKeep > 0 ? userDataSender.tokensClaimable : 0;
@@ -305,7 +305,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund was claimed");
         require(userDataSender.tokensClaimable > 0, "No tokens to claim");
-        uint tokensToSend = userDataSender.tokensClaimable;
+        uint256 tokensToSend = userDataSender.tokensClaimable;
         userDataSender.tokensClaimable = 0;
         userDataSender.tokensClaimed = true;
         token.safeTransfer(msg.sender, tokensToSend);
@@ -442,8 +442,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     /// @dev Adds liquidity to the specified DEX.
     /// @param fundingBudget The funding budget for adding liquidity.
     function _addLiquidity(uint256 fundingBudget) internal {
-        uint256 tokensToAdd = getTokensToAdd(fundingBudget);
-        addLiquidity(fundingBudget, tokensToAdd, isETHSale());
+        addLiquidity(fundingBudget, getTokensToAdd(fundingBudget), isETHSale());
     }
 
     /// @dev Handles excess funding and tokens after the sale is finalized.
