@@ -277,10 +277,9 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     }
 
     function getRefund() external nonReentrant {
-        require(shouldRefund(), "Refunds not enabled or doesnt pass config");
-
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
 
+        require(shouldRefund(), "Refunds not enabled or doesnt pass config");
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
@@ -295,11 +294,9 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     }
 
     function claimTokens() external nonReentrant {
+        CommonStructures.UserData storage userDataSender = userData[msg.sender];
         require(!saleInfo.refundEnabled, "Refunds enabled");
         require(saleInfo.finalized, "Sale not finalized yet");
-
-        CommonStructures.UserData storage userDataSender = userData[msg.sender];
-
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund was claimed");
         require(userDataSender.tokensClaimable > 0, "No tokens to claim");
