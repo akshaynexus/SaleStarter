@@ -66,6 +66,13 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         _;
     }
 
+    /**
+     * @dev Returns the smallest of two numbers.
+     */
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
+
     //Primary sale data getters
     function isETHSale() public view returns (bool) {
         return address(fundingToken) == address(0);
@@ -225,7 +232,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             ? (saleInfo.totalRaised + value) - saleConfig.hardCap
             : value;
         limit = (contributedAmount + limit) > saleConfig.maxBuy
-            ? Math.min(saleConfig.maxBuy, this.getRemainingContribution())
+            ? min(saleConfig.maxBuy, this.getRemainingContribution())
             : limit;
     }
 
