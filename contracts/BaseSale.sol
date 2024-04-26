@@ -241,6 +241,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(saleSpawner.checkTxPrice(tx.gasprice), "Above gas price limit");
 
         CommonStructures.UserData storage userDataSender = userData[user];
+    
         uint256 FundsToContribute = calculateLimitForUser(userDataSender.contributedAmount, value);
         if (FundsToContribute == 0) {
             //If there is no balance possible just refund it all
@@ -248,6 +249,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
             emit ExcessRefunded(user, value);
             return;
         }
+    
         //Check if it surpases max buy
         require(userDataSender.contributedAmount + FundsToContribute <= saleConfig.maxBuy, "Exceeds max buy");
         //Check if it passes hardcap
@@ -276,7 +278,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         else fundingToken.safeTransfer(user, value);
     }
 
-    function getRefund() external nonReentrant {
+    function getRefund() external  {
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
 
         require(shouldRefund(), "Refunds not enabled or doesnt pass config");
@@ -284,13 +286,16 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         require(!userDataSender.refundTaken, "Refund already claimed");
         require(userDataSender.contributedAmount > 0, "No contribution");
 
-        saleInfo.totalRaised -= userDataSender.contributedAmount;
+        uint refundAmt = userDataSender.contributedAmount;
+
+        saleInfo.totalRaised -= refundAmt;
         saleInfo.totalTokensToKeep -= saleInfo.totalTokensToKeep > 0 ? userDataSender.tokensClaimable : 0;
 
         userDataSender.refundTaken = true;
-        _handleFundingTransfer(msg.sender, userDataSender.contributedAmount);
-        emit Refunded(msg.sender, userDataSender.contributedAmount);
         userDataSender.contributedAmount = 0;
+
+        _handleFundingTransfer(msg.sender, refundAmt);
+        emit Refunded(msg.sender, refundAmt);
     }
 
     function claimTokens() external {
@@ -401,7 +406,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     }
 
     // This call finalizes the sale and lists on the uniswap dex (or any other dex given in the router)
-    function finalize() external onlySaleCreatororFactoryOwner nonReentrant {
+    function finalize() external onlySaleCreatororFactoryOwner {
         require(saleInfo.totalRaised > saleConfig.softCap, "Raise amount didnt pass softcap");
         require(!saleInfo.finalized, "Sale already finalized");
         //The param here is the remaining funding balance after sending the teamshare and factory fee
