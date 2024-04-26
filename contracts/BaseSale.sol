@@ -293,18 +293,18 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
         userDataSender.contributedAmount = 0;
     }
 
-    function claimTokens() external nonReentrant {
+    function claimTokens() external {
         CommonStructures.UserData storage userDataSender = userData[msg.sender];
         require(!saleInfo.refundEnabled, "Refunds enabled");
         require(saleInfo.finalized, "Sale not finalized yet");
         require(!userDataSender.tokensClaimed, "Tokens already claimed");
         require(!userDataSender.refundTaken, "Refund was claimed");
         require(userDataSender.tokensClaimable > 0, "No tokens to claim");
-
-        userDataSender.tokensClaimed = true;
-        token.safeTransfer(msg.sender, userDataSender.tokensClaimable);
-        emit TokensClaimed(msg.sender, userDataSender.tokensClaimable);
+        uint tokensToSend = userDataSender.tokensClaimable;
         userDataSender.tokensClaimable = 0;
+        userDataSender.tokensClaimed = true;
+        token.safeTransfer(msg.sender, tokensToSend);
+        emit TokensClaimed(msg.sender, tokensToSend);
     }
 
     // Admin only functions
