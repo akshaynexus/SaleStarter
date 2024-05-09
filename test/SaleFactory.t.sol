@@ -4,12 +4,14 @@ pragma solidity ^0.8.13;
 import "forge-std/Test.sol";
 import "../contracts/SaleFactory.sol";
 import "../contracts/SaleData.sol";
-import "../contracts/mock/BurnableToken.sol";
+import "../contracts/mock/ReentrantToken.sol";
 
 contract SaleFactoryTestV2 is Test {
     SaleFactory public saleFactory;
     SaleData public saleData;
     BaseSale public mockSale;
+    BaseSale public mockSaleNew;
+
     BurnableToken public tokenMockForSale;
     BurnableToken public mistakeToken;
 
@@ -83,28 +85,49 @@ contract SaleFactoryTestV2 is Test {
         mockSale.enableRefunds();
     }
 
+    function _finalizeNewsale() internal asOwner {
+        mockSaleNew.finalize();
+    }
+
     function contributeToBuy(address buyer, uint256 amount) internal {
+        contributeToBuySale(address(mockSale), buyer, amount);
+    }
+
+    function contributeToBuySale(address sale, address buyer, uint256 amount) internal {
         vm.deal(buyer, 0);
         vm.deal(buyer, amount);
         vm.startPrank(buyer);
-        (bool success,) = address(mockSale).call{value: amount}("");
-        require(success, "buying tokens failed");
+        (bool success, bytes memory data) = address(sale).call{value: amount}("");
+        if (!success) {
+            if (data.length > 0) {
+                // Bubble up the underlying revert reason
+                assembly {
+                    let ptr := mload(0x40)
+                    let size := returndatasize()
+                    returndatacopy(ptr, 0, size)
+                    revert(ptr, size)
+                }
+            } else {
+                revert("buying tokens failed");
+            }
+        }
         vm.stopPrank();
     }
 
-    function _fillTheSale() internal {
-        uint256 ethRequired = mockSale.getRemainingContribution();
+    function _fillTheSale(BaseSale sale) internal {
+        uint256 ethRequired = sale.getRemainingContribution();
 
         for (uint256 i = 1; ethRequired >= 0; i++) {
-            uint256 amountToBuy = mockSale.calculateLimitForUser(address(mockSale).balance, 100 ether);
+            uint256 amountToBuy = sale.calculateLimitForUser(address(sale).balance, 100 ether);
             if (amountToBuy == 0) return;
-            contributeToBuy(buyerWallets[i], amountToBuy);
-            ethRequired = mockSale.getRemainingContribution();
+            contributeToBuySale(address(sale), buyerWallets[i], amountToBuy);
+            console.log("contributed %d eth", amountToBuy);
+            ethRequired = sale.getRemainingContribution();
         }
     }
 
     function testEnoughAllocationPerEth() public {
-        _fillTheSale();
+        _fillTheSale(mockSale);
 
         assertEq(mockSale.calculateTokensClaimable(1 ether), 5 ether, "Allocation per ETH should be correct");
 
@@ -199,7 +222,7 @@ contract SaleFactoryTestV2 is Test {
 
     // Test finalizing a sale and ensure the team share is sent to the creator
     function testFinalizeTeamShare() public {
-        _fillTheSale();
+        _fillTheSale(mockSale);
 
         uint256 creatorBalanceBefore = address(owner).balance;
         _finalizeSale();
@@ -213,7 +236,7 @@ contract SaleFactoryTestV2 is Test {
     // Test finalizing a sale and ensure the factory fee is sent to the factory contract
     function testFinalizeFactoryFee() public {
         uint256 factoryBalanceBefore = address(saleFactory).balance;
-        _fillTheSale();
+        _fillTheSale(mockSale);
         _finalizeSale();
 
         uint256 expectedFactoryFee = (5 ether * saleFactory.getETHFee()) / DIVISOR;
@@ -233,7 +256,7 @@ contract SaleFactoryTestV2 is Test {
         tokenMockForSale.transfer(address(mockSale), excessTokens);
         assertEq(tokenMockForSale.balanceOf(owner), 0, "we have more than 0");
 
-        _fillTheSale();
+        _fillTheSale(mockSale);
         // uint256 excessReal = tokenMockForSale.balanceOf(address(mockSale)) - mockSale.getRequiredAllocationOfTokens();
         uint256 creatorBalanceBefore = tokenMockForSale.balanceOf(owner);
         _finalizeSale();
@@ -574,7 +597,7 @@ contract SaleFactoryTestV2 is Test {
 
     function testFinalizeWhenSaleAlreadyFinalized() public {
         _forceStartSale();
-        _fillTheSale();
+        _fillTheSale(mockSale);
         _finalizeSale();
         //Try to finalize again but it will revert cause already finalized
         vm.expectRevert("Sale already finalized");

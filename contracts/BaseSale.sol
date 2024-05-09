@@ -31,8 +31,8 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     uint256 immutable DIVISOR = 10000;
 
     uint24 immutable feeTierV3 = 3000;
-    int24 immutable MIN_TICK = -887_100;
-    int24 immutable MAX_TICK = -MIN_TICK;
+    int24 MIN_TICK;
+    int24 MAX_TICK;
 
     //This gets the sale config passed from sale factory
     CommonStructures.SaleConfig public saleConfig;
@@ -151,6 +151,7 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
     // This function creates and returns the pair for the sale if it doesn't exist
     function createPair(address baseToken, address saleToken, bool useV3)
         internal
+        //Returns the address in this format (Pair address, token0, token1)
         returns (address, address, address)
     {
         if (!useV3) {
@@ -197,6 +198,9 @@ contract BaseSale is IBaseSaleWithoutStructures, ReentrancyGuard {
 
         if (saleConfig.isV3) {
             weth = IWETH(INonfungiblePositionManager(saleConfig.router).WETH9());
+            int24 tickSpacing = IUniswapV3Factory(INonfungiblePositionManager(saleConfig.router).factory()).feeAmountTickSpacing(feeTierV3);
+            MAX_TICK = (887272 /* TickMath.MAX_TICK */ / tickSpacing) * tickSpacing;
+            MIN_TICK = (-887272 /* TickMath.MIN_TICK */ / tickSpacing) * tickSpacing;
         } else {
             weth = IWETH(IUniswapV2Router02(saleConfig.router).WETH());
         }

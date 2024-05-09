@@ -6,7 +6,6 @@ library UniswapV3PricingHelper {
     uint256 private constant Q96 = 2 ** 96;
 
     //Taken from solady ,didnt import solady math lib to save gas
-
     /// @dev Returns the square root of `x`.
     function sqrt(uint256 x) internal pure returns (uint256 z) {
         /// @solidity memory-safe-assembly
@@ -86,6 +85,7 @@ library UniswapV3PricingHelper {
     function encodePriceSqrt(uint256 reserve0, uint256 reserve1) public pure returns (uint160 sqrtPriceX96) {
         require(reserve0 > 0 && reserve1 > 0, "Reserves must be positive");
         uint256 ratio = sqrt(((reserve1 * padding) / reserve0) / padding) * Q96;
+        require(ratio > 0,"invalid ratio");
         sqrtPriceX96 = uint160(ratio);
     }
 }
